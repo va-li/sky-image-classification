@@ -1,0 +1,2 @@
+hostname: tinkerbell
+user: vbauer
