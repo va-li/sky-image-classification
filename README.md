@@ -18,12 +18,12 @@ The dataset consists of 9755 daytime hemispherical sky images collected from May
 
 <img src="dissemination/images/2024-08-23T09-30-00-006516+00-00.png" width="400" alt="Hemispherical Sky Image">
 
-Each image is fused from the original raw capture of five increasing exposures into one high dynamic range image (HDR) to avoid overexposed pixels from the bright sunlight and capture details in clouds at the same time. The images from one camera have a resolution of 884x850 pixels and 892x864 pixels from the other camera. Below are examples for each of the four classes that we want to detect: **clouds**, **soiling**, **water droplets inside** (from dew), and **water droplets outside** (from rain).
+Each image is fused from the original raw capture of five increasing exposures into one high dynamic range image (HDR) to avoid overexposed pixels from the bright sunlight and capture details in clouds at the same time. The images from one camera have a resolution of 884x850 pixels and 892x864 pixels from the other camera. Below are examples for each of the five classes that we want to detect: **clear sky**, **clouds**, **soiling**, **water droplets inside** (from dew), and **water droplets outside** (from rain).
 
-| Clouds | Soiling | Water droplets inside | Water droplets outside |
-|--------|---------|-----------------------|------------------------|
-| ![Clouds](dissemination/images/2024-08-24T10-00-00-006417+00-00.png) | ![Soiling](dissemination/images/2024-07-21T14-30-00-006321+00-00_annotated.png) | ![Water droplets inside](dissemination/images/2024-09-17T12-45-00-006205+00-00_annotated.png) | ![Water droplets outside](dissemination/images/2024-09-04T12-45-00-006141+00-00.png) |
-| Clouds are visible in the sky. | Dirt on the dome protecting the lens is visible, mostly by reflection around the sun, but also in other areas of the dome. | Water droplets from dew inside of the dome protecting the lens are visible. | Water droplets outside from rain on the dome protecting the lens are visible. |
+| Clear Sky | Clouds | Soiling | Water droplets inside | Water droplets outside |
+|-----------|--------|---------|-----------------------|------------------------|
+| ![Clear Sky](dissemination/images/2024-08-23T09-30-00-006516+00-00.png)| ![Clouds](dissemination/images/2024-08-24T10-00-00-006417+00-00.png) | ![Soiling](dissemination/images/2024-07-21T14-30-00-006321+00-00_annotated.png) | ![Water droplets inside](dissemination/images/2024-09-17T12-45-00-006205+00-00_annotated.png) | ![Water droplets outside](dissemination/images/2024-09-04T12-45-00-006141+00-00.png) |
+| Clear sky. Mutually exclusive with *Clouds* class. | Clouds are visible in the sky. Mutually exclusive with *Clear Sky* class. | Dirt on the dome protecting the lens is visible, mostly by reflection around the sun, but also in other areas of the dome. | Water droplets from dew inside of the dome protecting the lens are visible. | Water droplets outside from rain on the dome protecting the lens are visible. |
 
 Looking at the third and fourth images we can see that the classes can overlap (clouds can be present with rain or dew). This is why we need a multi-label classification approach.
 
