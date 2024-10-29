@@ -1,0 +1,32 @@
+[
+    {
+      "name": "clouds",
+      "color": "#aaeff0",
+      "type": "tag",
+      "attributes": []
+    },
+    {
+      "name": "rain",
+      "color": "#2a7dd1",
+      "type": "tag",
+      "attributes": []
+    },
+    {
+      "name": "dew",
+      "color": "#f078f0",
+      "type": "tag",
+      "attributes": []
+    },
+    {
+      "name": "clear sky",
+      "color": "#fafa37",
+      "type": "tag",
+      "attributes": []
+    },
+    {
+      "name": "soiling",
+      "color": "#d7ad2e",
+      "type": "tag",
+      "attributes": []
+    }
+]
