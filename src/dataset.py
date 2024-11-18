@@ -1,10 +1,12 @@
+from typing import overload
+from typing import Dict, List, Tuple, Union, Optional, Any, Callable, Iterable, Literal
+from pathlib import Path
+
 import torch
 import pandas as pd
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
-from typing import Dict, List, Tuple, Union, Optional, Any, Callable, Iterable, Literal
-from pathlib import Path
 from skimage import io
 
 # Ignore warnings
@@ -59,14 +61,13 @@ class SkyImageMultiLabelDataset(Dataset):
 
         # store the expanded labels (e.g. 'image_file.jpg', [1,0,1])
         image_labels = expand_labels(filter_labeled_images(image_labels))
+        # index: image file name, columns: label names
         self.image_labels_df = pd.DataFrame.from_dict(image_labels, orient='index', columns=label_names)
 
     def __len__(self):
         return len(self.image_labels_df)
-
-    def __getitem__(self, idx):
-        if torch.is_tensor(idx):
-            idx = idx.tolist()
+    
+    def __getitem__(self, idx: int) -> Dict[str, Any]:
 
         image_file_name = self.image_labels_df.index[idx]
         image_file_path = self.root_dir / image_file_name
@@ -76,7 +77,63 @@ class SkyImageMultiLabelDataset(Dataset):
             image = self.transform(image)
         
         sampel_labels_numerical = self.image_labels_df.iloc[idx].values
-        sample_label_names = [ self.label_names[i] for i, label in enumerate(sampel_labels_numerical) if label ]
-        sample = { 'image': image, 'labels': sampel_labels_numerical.astype(np.float32), 'filename': image_file_name, 'label_names': sample_label_names }
+        # sample_label_names = [ self.label_names[i] for i, label in enumerate(sampel_labels_numerical) if label ]
+        labels = sampel_labels_numerical.astype(np.float32)
+        # sample = { 'image': image, 'labels': sampel_labels_numerical.astype(np.float32), 'filename': image_file_name, 'label_names': sample_label_names }
 
-        return sample
+        return image, labels
+
+    def get_integer_indices_for_labels(self, labels: List[str] | List[int]) -> np.ndarray:
+        '''Get integer indices of images having at least all the given labels, possibly having additional labels
+
+        Parameters
+        ----------
+        labels : List[str] | List[int]
+            The selection of labels to get integer indices for, can be label names or label numbers
+
+        Returns
+        -------
+        np.ndarray
+            The list of integer indices having all at least the given labels, possibly having additional labels
+        '''
+        if isinstance(labels[0], str):
+            if not all([ label in self.label_names for label in labels ]):
+                raise ValueError(f'Invalid label name(s): {labels} (valid label names: {self.label_names})')
+            label_indices = [ self.label_names.index(label) for label in labels ]
+        else:
+            if not all([ 0 <= label < len(self.label_names) for label in labels ]):
+                raise ValueError(f'Invalid label number(s): {labels} (valid label numbers: {list(range(len(self.label_names)))})')
+            label_indices = labels
+            
+        return np.where(self.image_labels_df.iloc[:, label_indices].all(axis=1))[0]
+        
+    def get_integer_indices_for_exclusive_labels(self, labels: List[str] | List[int]) ->  np.ndarray:
+        '''Get integer indices of images having exactly the given labels
+
+        Parameters
+        ----------
+        labels : List[str] | List[int]
+            The selection of labels to get integer indices for, can be label names or label numbers
+
+        Returns
+        -------
+        np.ndarray
+            The list of integer indices having exactly the given labels
+        '''
+        if isinstance(labels[0], str):
+            if not all([ label in self.label_names for label in labels ]):
+                raise ValueError(f'Invalid label name(s): {labels} (valid label names: {self.label_names})')
+            label_indices = [ self.label_names.index(label) for label in labels ]
+        else:
+            if not all([ 0 <= label < len(self.label_names) for label in labels ]):
+                raise ValueError(f'Invalid label number(s): {labels} (valid label numbers: {list(range(len(self.label_names)))})')
+            label_indices = labels
+        
+        # create a list of boolean values, True for the selected labels, False for the rest
+        expanded_label_indices = [ True if i in label_indices else False for i in range(len(self.label_names)) ]
+        
+        # for each line in the image_labels_df, compare if the labels are an exact match
+        exact_match = np.logical_and.reduce(self.image_labels_df.values == np.array(expanded_label_indices), axis=1)
+        
+        # return the integer indices of the exact matches
+        return np.where(exact_match)[0]
