@@ -56,3 +56,20 @@ Looking at the third and fourth images we can see that the classes can overlap (
 (2) Real-Time Automatic Cloud Detection Using a Low-Cost Sky Camera ([DOI 10.3390/rs12091382](https://doi.org/10.3390/rs12091382))
 
 (3) CVAT: Computer Vision Annotation Tool ([CVAT on GitHub](https://github.com/cvat-ai/cvat))
+
+---
+
+## Update 2024-11-20
+
+- The dataset images have been collected and preprocessed and amount to 9780 images.
+- 4026 (41%) images are labeled, 5700 (58%) images are left to label.
+- 54 (1%) images have been excluded from the dataset, because they include people or other objects (spiders, birds, etc.) or they are of poor quality due to high noise.
+- A first version of a multi-label classifier based on MobileNetV3 has been fine-tuned on the labeled images. The results are promising, but the model is not yet generalizing well to unseen images.
+
+**Random sample of labeled images**:
+
+![Random Sample of Labeled Images](dissemination/images/labeled_data_sample_2024-11-20.png)
+
+**Random sample of excluded images**:
+
+![Random Sample of Excluded Images](dissemination/images/excluded_data_sample_2024-11-20.png)
