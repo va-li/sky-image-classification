@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Multi-Label Image Classifier</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <style>
+        @starting-style {
+            .prediction-bar {
+                height: 20px;
+                margin: 10px 0;
+                transition: width 0.5s ease;
+                width: 0%;
+                /* round the corners */
+                border-radius: 10px;
+            }
+        }
+        #dropzone {
+            border: 2px dashed #ccc;
+            border-radius: 20px;
+            padding: 20px;
+            text-align: center;
+            transition: background-color 0.3s;
+            /* restrict the width of the dropzone */
+            max-width: 600px;
+            /* center the dropzone */
+            margin: 0 auto;
+        }
+        #dropzone img {
+            /* center the image */
+            margin: 0 auto;
+        }
+        #dropzone.dragover {
+            background-color: #f0f0f0;
+        }
+        #predictions {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            /* reduce the width of the predictions */
+            max-width: 600px;
+            /* center */
+            margin: 0 auto;
+        }
+        .prediction-bar {
+            height: 20px;
+            margin: 10px 0;
+            transition: width 0.5s ease;
+            
+            /* round the corners */
+            border-radius: 10px;
+        }
+        /* center the header */
+        article header {
+            text-align: center;
+        }
+        /* center the button */
+        #predictButton {
+            display: block;
+            margin: 20px auto;
+        }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <article>
+            <header>
+                <h1>Sky Image Multi-Label Classification</h1>
+            </header>
+            
+            <div id="dropzone">
+                <p>Drag and drop a sky image here or click to select</p>
+                <input type="file" id="fileInput" accept="image/*" style="display:none;">
+                <img id="previewImage" style="max-width: 100%; display: none;">
+            </div>
+            
+            <button id="predictButton" disabled>Classify Image</button>
+            <footer>
+                <div id="predictions"></div>
+                <div id="inference-time"></div>
+            </footer>
+        </article>
+    </main>
+
+    <script>
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const previewImage = document.getElementById('previewImage');
+        const predictButton = document.getElementById('predictButton');
+        const predictions = document.getElementById('predictions');
+        const inferenceTime = document.getElementById('inference-time');
+
+        let selectedFile = null;
+
+        // Drag and drop event handlers
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropzone.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight() {
+            dropzone.classList.add('dragover');
+        }
+
+        function unhighlight() {
+            dropzone.classList.remove('dragover');
+        }
+
+        dropzone.addEventListener('drop', handleDrop, false);
+        fileInput.addEventListener('change', handleFile, false);
+        dropzone.addEventListener('click', () => fileInput.click(), false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFileSelection(files[0]);
+        }
+
+        function handleFile(e) {
+            handleFileSelection(e.target.files[0]);
+        }
+
+        function handleFileSelection(file) {
+            if (file && file.type.startsWith('image/')) {
+                // first update the file
+                selectedFile = file;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    previewImage.src = e.target.result;
+                    previewImage.style.display = 'block';
+                    predictButton.disabled = false;
+                    predictions.innerHTML = '';
+                    inferenceTime.innerHTML = '';
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        predictButton.addEventListener('click', async () => {
+            
+            console.log('Predicting image...');
+
+            const file = fileInput.files[0] || selectedFile;
+            if (!file) return;
+
+            console.log(file);
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                displayPredictions(result.predictions);
+                displayInferenceTime(result.inference_time_ms);
+            } catch (error) {
+                console.error('Error:', error);
+                predictions.innerHTML = `<p>Prediction failed: ${error.message}</p>`;
+                inferenceTime.innerHTML = '';
+            }
+        });
+
+        function displayPredictions(predictionData) {
+            // sort predictions by score (list of objects)
+            predictionData.sort((a, b) => b.score - a.score);
+
+            predictions.innerHTML = predictionData.map(pred => `
+                <div>
+                    <p style="font-weight: ${pred.score > 0.5 ? 'bold' : 'normal'}">${pred.label}: ${(pred.score * 100).toFixed(2)}%</p>
+                    <div class="prediction-bar" 
+                         style="width: ${pred.score * 100}%; 
+                                background-color: ${pred.score > 0.5 ? 'green' : 'gray'}">
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function displayInferenceTime(time_ms) {
+            inferenceTime.innerHTML = `Inference time: ${time_ms.toFixed(0)} ms`;
+        }
+    </script>
+</body>
+</html>
