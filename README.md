@@ -84,9 +84,10 @@ Looking at the third and fourth images we can see that the classes can overlap (
 
 - First useful version of the model is trained and saved in [./data/training-runs/mobilenetv3_20241120-195102+0100/best_model.pth](./data/training-runs/mobilenetv3_20241120-195102+0100/best_model.pth).
 - Training was done with fine-tuning the MobileNetV3Large model and using data augmentation.
-- Trained was done on 3222 images, validated on 402 images. Test set not yet used.
+- Training was done on 3222 images, validated on 402 images. Test set not yet used.
 - Training time was around 2h40m on my laptop's NVIDIA GeForce MX150.
 - The model achieves on the validation set a subset accuracy of 89% and a mean Jaccard score of 94%, with a macro averaged precision of 95% and recall of 93% over all five classes.
+- Added basic webapp to classify images using the trained model. The webapp is available in [./src/webapp/](./src/webapp/).
 
 **Example of model output on unseen images**:
 
@@ -96,3 +97,6 @@ Looking at the third and fourth images we can see that the classes can overlap (
 | ![](dissemination/images/daedalus_2024-06-26T07-00-00-006205+00-00.jpg) | `clouds: 1.00 dew: 0.98 soiling: 0.70 rain: 0.00 clear sky: 0.00` |
 | ![](dissemination/images/ikarus_2024-05-22T15-57-58-017680+00-00.jpg) | `clear sky: 0.99 clouds: 0.01 soiling: 0.00 dew: 0.00 rain: 0.00` |
 
+**Screenshots of the webapp**:
+
+![Webapp Screenshot 1](dissemination/images/webapp_screenshot_2024-11-21_1.png)
