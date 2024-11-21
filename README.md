@@ -59,9 +59,15 @@ Looking at the third and fourth images we can see that the classes can overlap (
 
 ---
 
+## Update 2024-10-29
+
+- Created a dataset by merging raw exposures into HDR images. They amount to 9780 images.
+- Created a custom PyTorch dataset class [SkyImageMultiLabelDataset](./src/dataset.py).
+- Successfully followed pytorch guide on [Real Time Inference on Raspberry Pi 4](https://pytorch.org/tutorials/intermediate/realtime_rpi.html) to test running a MobileNetV3 model on the Raspberry Pi 4.
+- Decided to use the MobileNetV3 model as a starting point for the project, instead of TripleNet. Reasons: weights for MobileNetV3 are available in PyTorch, but not for TripleNet; MobileNetV3 expects an input size of 224x224, which is closer to the resolution of the images in the dataset, while TripleNet expects 32x32 images.
+
 ## Update 2024-11-20
 
-- The dataset images have been collected and preprocessed and amount to 9780 images.
 - 4026 (41%) images are labeled, 5700 (58%) images are left to label.
 - 54 (1%) images have been excluded from the dataset, because they include people or other objects (spiders, birds, etc.) or they are of poor quality due to high noise.
 - A first version of a multi-label classifier based on MobileNetV3 has been fine-tuned on the labeled images. The results are promising, but the model is not yet generalizing well to unseen images.
@@ -73,3 +79,20 @@ Looking at the third and fourth images we can see that the classes can overlap (
 **Random sample of excluded images**:
 
 ![Random Sample of Excluded Images](dissemination/images/excluded_data_sample_2024-11-20.png)
+
+## Update 2024-11-21
+
+- First useful version of the model is trained and saved in [./data/training-runs/mobilenetv3_20241120-195102+0100/best_model.pth](./data/training-runs/mobilenetv3_20241120-195102+0100/best_model.pth).
+- Training was done with fine-tuning the MobileNetV3Large model and using data augmentation.
+- Trained was done on 3222 images, validated on 402 images. Test set not yet used.
+- Training time was around 2h40m on my laptop's NVIDIA GeForce MX150.
+- The model achieves on the validation set a subset accuracy of 89% and a mean Jaccard score of 94%, with a macro averaged precision of 95% and recall of 93% over all five classes.
+
+**Example of model output on unseen images**:
+
+| Image | Prediciton|
+| --- | --- |
+| ![](dissemination/images/daedalus_2024-06-01T09-30-00-006100+00-00.jpg) | `clouds: 1.00 rain: 0.93 soiling: 0.36 dew: 0.32 clear sky: 0.00` |
+| ![](dissemination/images/daedalus_2024-06-26T07-00-00-006205+00-00.jpg) | `clouds: 1.00 dew: 0.98 soiling: 0.70 rain: 0.00 clear sky: 0.00` |
+| ![](dissemination/images/ikarus_2024-05-22T15-57-58-017680+00-00.jpg) | `clear sky: 0.99 clouds: 0.01 soiling: 0.00 dew: 0.00 rain: 0.00` |
+
