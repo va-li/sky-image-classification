@@ -132,7 +132,7 @@ try:
     # Training loop
     N_EPOCHS = 20
     hyperparameters['n_epochs'] = N_EPOCHS
-    FRZAE_LAYERS = True
+    FRZAE_LAYERS = False
     hyperparameters['freeze_layers'] = FRZAE_LAYERS
     best_val_loss = float('inf')
     best_val_loss_epoch = 0
@@ -283,8 +283,8 @@ try:
         ax1.set_xticks(metrics.index)
         ax1.set_xticklabels(metrics.index)
         
-        fig.tight_layout()
         fig.suptitle(f'{training_run_data_path.name} - Training Metrics')
+        fig.tight_layout()
         # save the plot
         plt.savefig(training_run_data_path / 'metrics_plot.png')
         
