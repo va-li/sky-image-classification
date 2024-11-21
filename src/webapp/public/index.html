@@ -40,7 +40,7 @@
             /* reduce the width of the predictions */
             max-width: 600px;
             /* center */
-            margin: 0 auto;
+            /* margin: 0 auto; */
         }
         .prediction-bar {
             height: 20px;
@@ -68,15 +68,17 @@
                 <h1>Sky Image Multi-Label Classification</h1>
             </header>
             
-            <div id="dropzone">
-                <p>Drag and drop a sky image here or click to select</p>
-                <input type="file" id="fileInput" accept="image/*" style="display:none;">
-                <img id="previewImage" style="max-width: 100%; display: none;">
+            <div class="grid">
+                <div id="dropzone">
+                    <p>Drag and drop a sky image here or click to select</p>
+                    <input type="file" id="fileInput" accept="image/*" style="display:none;">
+                    <img id="previewImage" style="max-width: 100%; display: none;">
+                </div>
+                <div id="predictions"></div>
             </div>
             
             <button id="predictButton" disabled>Classify Image</button>
             <footer>
-                <div id="predictions"></div>
                 <div id="inference-time"></div>
             </footer>
         </article>
@@ -183,9 +185,9 @@
 
             predictions.innerHTML = predictionData.map(pred => `
                 <div>
-                    <p style="font-weight: ${pred.score > 0.5 ? 'bold' : 'normal'}">${pred.label}: ${(pred.score * 100).toFixed(2)}%</p>
+                    <p style="font-weight: ${pred.score > 0.5 ? 'bold' : 'normal'}">${pred.label}: ${(pred.score * 100).toFixed(1)}%</p>
                     <div class="prediction-bar" 
-                         style="width: ${pred.score * 100}%; 
+                         style="width: max(20px, ${pred.score * 100}%); 
                                 background-color: ${pred.score > 0.5 ? 'green' : 'gray'}">
                     </div>
                 </div>
