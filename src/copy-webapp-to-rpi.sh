@@ -16,11 +16,3 @@ ssh $HOST "mkdir -p $TARGET_DIR"
 
 # exclude __pycache__, .git, venv, .vscode folders
 rsync -av --exclude '__pycache__' --exclude '.git' --exclude 'venv' --exclude '.vscode' ./webapp/ $HOST:${TARGET_DIR}
-
-# create a virtual environment on the Raspberry Pi if it doesn't exist
-# ssh $HOST "cd $TARGET_DIR && python3.11 -m venv venv"
-
-# # install the required Python packages
-# ssh $HOST "cd $TARGET_DIR && source venv/bin/activate && pip install --upgrade pip && pip install -r requirements.txt"
-
-# echo "Webapp files copied to Raspberry Pi and virtual environment set up"
