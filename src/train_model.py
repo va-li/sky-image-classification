@@ -172,22 +172,9 @@ def evaluate_model(
     )  # calculated for each sample and then averaged
 
     # calculate confusion matrices (one-vs-rest) for each class
-    # they are ordered by the class index, but only the labels present in all_true_labels and all_preds are included
-    # so if a class is not present in the dataset, it is not included in the confusion matrix
-    confusion_matrices_sparse = multilabel_confusion_matrix(
+    confusion_matrices = multilabel_confusion_matrix(
         all_true_labels, all_predicted_labels
     )
-    labels_present = sorted(np.unique(all_true_labels + all_predicted_labels).tolist())
-
-    confusion_matrices = []
-    for class_label in range(num_classes):
-        if class_label in labels_present:
-            # class present
-            j = labels_present.index(class_label)
-            confusion_matrices.append(confusion_matrices_sparse[j])
-        else:
-            # class not present
-            confusion_matrices.append(np.full((2, 2), 0, dtype=int))
 
     # calculate the accuracy, recall and precision for each class
     # and the mean accuracy, recall and precision for the given dataset
@@ -198,12 +185,6 @@ def evaluate_model(
     class_recalls = []
     class_precisions = []
     for conf in confusion_matrices:
-        if conf.sum() == 0:
-            # no samples for this class
-            class_accuracies.append(np.nan)
-            class_recalls.append(np.nan)
-            class_precisions.append(np.nan)
-            continue
 
         # calculate the true positives, true negatives, false positives and false negatives
         tp = conf[1, 1]
