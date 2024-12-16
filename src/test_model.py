@@ -18,9 +18,10 @@ import matplotlib.pyplot as plt
 
 from dataset import SkyImageMultiLabelDataset
 from model import MultiLabelClassificationMobileNetV3Large
+from utils import evaluate_model
 
 training_run_data_path = Path(
-    f"/home/vbauer/MEGA/Master/Data Science/2024 WS/Applied Deep Learning/sky-image-classification/data/training-runs/mobilenetv3_20241206-115523+0100"
+    "/home/vbauer/MEGA/Master/Data Science/2024 WS/Applied Deep Learning/sky-image-classification/data/training-runs/mobilenetv3_20241216-170700+0100"
 )
 
 logging.basicConfig(
@@ -29,7 +30,7 @@ logging.basicConfig(
     # log to stdout and to a file
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler(training_run_data_path / "test.log"),
+        logging.FileHandler(training_run_data_path / "test.log", mode="w"),
     ],
 )
 
@@ -72,91 +73,92 @@ try:
         f"Test set:\n{dataset.image_labels_df.iloc[test_dataset.indices].sum()}"
     )
 
+    NUM_CLASSES = hyperparameters_train["num_classes"]
+
     # load the model
-    model = MultiLabelClassificationMobileNetV3Large(
-        num_classes=len(dataset.label_names)
-    )
+    model = MultiLabelClassificationMobileNetV3Large(num_classes=NUM_CLASSES)
     try:
         model.load_state_dict(
             torch.load(
                 training_run_data_path / "best_model.pth",
                 map_location=torch.device(device),
+                weights_only=True,
             )
         )
     except FileNotFoundError:
         print("No pretrained weights found. Model will use random initialization.")
 
-    model.eval()
+    PREDICTION_THRESHOLD = hyperparameters_train["prediction_threshold"]
 
-    # evaluate model on test data
-
-    test_start = time.time()
-
-    test_loss = 0.0
-    all_preds = []
-    all_labels = []
-    with torch.no_grad():
-        for inputs, labels in tqdm(test_loader):
-            inputs, labels = inputs.to(device), labels.to(device).float()
-            outputs = model(inputs)
-
-            preds = outputs > 0.5
-            all_preds.extend(preds.cpu().numpy())
-            all_labels.extend(labels.cpu().numpy())
-
-    test_duration = time.time() - test_start
-
-    # show confusion matrix with label names and accuracy, recall, precision for each class in the validation set
-    # as a nice table labeled with TRUE/FALSE for ground truth and predicted
-    conf_matrix = multilabel_confusion_matrix(all_labels, all_preds)
-    class_accuracies = []
-    class_recalls = []
-    class_precisions = []
-    for i, conf in enumerate(conf_matrix):
-        tp = conf[1, 1]
-        tn = conf[0, 0]
-        fp = conf[0, 1]
-        fn = conf[1, 0]
-
-        # show it as a table
-        logging.info(
-            f"Label: {dataset.label_names[i]}\n"
-            + str(
-                pd.DataFrame(
-                    conf, index=["True 0", "True 1"], columns=["Pred 0", "Pred 1"]
-                )
-            )
+    criterion = nn.BCELoss(
+        weight=torch.tensor(
+            list(hyperparameters_train["loss_function_weights"].values())
         )
-
-        accuracy = (tp + tn) / (tp + tn + fp + fn)
-        class_accuracies.append(accuracy)
-        recall = tp / (tp + fn)
-        class_recalls.append(recall)
-        precision = tp / (tp + fp)
-        class_precisions.append(precision)
-
-        logging.info(
-            f"Accuracy: {accuracy:.3f}, Recall: {recall:.3f}, Precision: {precision:.3f}"
-        )
-
-    # calculate the subset accuracy and jaccard score for the validation set
-    test_subset_accuracy = accuracy_score(all_labels, all_preds)
-    test_mean_jaccard = jaccard_score(
-        all_labels, all_preds, average="samples"
-    )  # calculated for each sample and then averaged
-    test_mean_precision = np.nanmean(class_precisions)
-    test_mean_recall = np.mean(class_recalls)
-    test_mean_accuracy = np.mean(class_accuracies)
-
-    logging.info(f"Test time {test_duration:.0f}s")
-    logging.info(
-        f"Test Mean Accuracy: {test_mean_accuracy:.4f}, Test Mean Precision: {test_mean_precision:.4f}, Test Mean Recall: {test_mean_recall:.4f}"
-    )
-    logging.info(
-        f"Test Subset Accuracy: {test_subset_accuracy:.4f}, Test Mean Jaccard: {test_mean_jaccard:.4f}"
+        .float()
+        .to(device)
     )
 
-    logging.info("Finished evaluation")
+    test_results = evaluate_model(
+        model, criterion, test_loader, device, PREDICTION_THRESHOLD
+    )
+
+    logging.info("Test set results:")
+    logging.info(
+        f"Test Loss: {test_results['loss']:.4f}, Time: {test_results['duration']:.0f}s"
+    )
+    logging.info(
+        f"Test Mean Accuracy: {test_results['mean_accuracy']:.4f}, Test Mean Precision: {test_results['mean_precision']:.4f}, Test Mean Recall: {test_results['mean_recall']:.4f}"
+    )
+    logging.info(
+        f"Test Subset Accuracy: {test_results['subset_accuracy']:.4f}, Test Mean Jaccard: {test_results['mean_jaccard']:.4f}"
+    )
+
+    for class_label, conf in enumerate(test_results["confusion_matrices"]):
+        accuracy = test_results["class_accuracies"][class_label]
+        recall = test_results["class_recalls"][class_label]
+        precision = test_results["class_precisions"][class_label]
+
+        logging.info(f"Label: {dataset.label_names[class_label]}")
+        logging.info(
+            f"Accuracy: {accuracy:.3f}, Recall: {recall:.3f}, Precision: {precision:.3f}\n"
+            + pd.DataFrame(
+                conf, index=["True 0", "True 1"], columns=["Pred 0", "Pred 1"]
+            ).to_markdown()
+        )
+
+    # save the test prediciton results
+    test_predictions = {
+        "image_paths": dataset.image_labels_df.index[test_dataset.indices].tolist(),
+        "dataset_indices": test_dataset.indices,
+        "true_labels": test_results["true_labels"].astype(int).tolist(),
+        "predicted_labels": test_results["predicted_labels"].astype(int).tolist(),
+    }
+
+    with open(training_run_data_path / "test_predictions.json", "w") as f:
+        json.dump(test_predictions, f, indent=4)
+
+    # save the test metrics
+    test_metrics = {
+        "test_loss": test_results["loss"],
+        "test_time_seconds": test_results["duration"],
+        "test_subset_accuracy": test_results["subset_accuracy"],
+        "test_mean_accuracy": test_results["mean_accuracy"],
+        "test_mean_jaccard": test_results["mean_jaccard"],
+        "test_mean_precision": test_results["mean_precision"],
+        "test_mean_recall": test_results["mean_recall"],
+        "test_confusion_matrices": list(
+            map(lambda conf: conf.tolist(), test_results["confusion_matrices"])
+        ),
+        "test_class_accuracies": test_results["class_accuracies"],
+        "test_class_recalls": test_results["class_recalls"],
+        "test_class_precisions": test_results["class_precisions"],
+    }
+
+    (training_run_data_path / "test_metrics.json").write_text(
+        json.dumps(test_metrics, indent=4)
+    )
+
+    logging.info("Evaluations complete")
 
 except Exception as e:
     # print the full traceback to the log file
