@@ -53,7 +53,7 @@ try:
             v2.ColorJitter(
                 brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2
             ),  # randomly change the brightness, contrast, saturation and hue
-            v2.Resize((448, 448), interpolation=v2.InterpolationMode.BICUBIC),
+            v2.Resize((224, 224), interpolation=v2.InterpolationMode.BICUBIC),
             v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
@@ -61,7 +61,7 @@ try:
     transform_val_test = v2.Compose(
         [
             v2.ToTensor(),
-            v2.Resize((448, 448), interpolation=v2.InterpolationMode.BICUBIC),
+            v2.Resize((224, 224), interpolation=v2.InterpolationMode.BICUBIC),
             v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
