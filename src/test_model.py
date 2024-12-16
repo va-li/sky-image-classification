@@ -21,8 +21,8 @@ from model import MultiLabelClassificationMobileNetV3Large
 from utils import evaluate_model
 
 training_run_data_path = Path(
-    "/home/vbauer/MEGA/Master/Data Science/2024 WS/Applied Deep Learning/sky-image-classification/data/training-runs/mobilenetv3_20241216-170700+0100"
-)
+    "../data/training-runs/" + input("Enter the training run directory name (e.g. 'mobilenetv3_20241216-235028+0100'): ") + "/"
+).resolve()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,8 +44,8 @@ logging.basicConfig(
 try:
     # load the test dataset
     dataset_path = Path(
-        "/home/vbauer/MEGA/Master/Data Science/2024 WS/Applied Deep Learning/sky-image-classification/data/"
-    )
+        "../data/"
+    ).resolve()
     hyperparameters_train = json.loads(
         (training_run_data_path / "hyperparameters.json").read_text()
     )
