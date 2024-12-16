@@ -22,8 +22,8 @@ from utils import train_one_epoch, evaluate_model
 # each training run gets its own directory to store the model, metrics and logs
 training_run_timestamp = time.strftime("%Y%m%d-%H%M%S%z")
 training_run_data_path = Path(
-    f"/home/vbauer/MEGA/Master/Data Science/2024 WS/Applied Deep Learning/sky-image-classification/data/training-runs/mobilenetv3_{training_run_timestamp}"
-)
+    f"../data/training-runs/mobilenetv3_{training_run_timestamp}"
+).resolve()
 training_run_data_path.mkdir(parents=True, exist_ok=True)
 
 # log to a file and to stdout
@@ -72,8 +72,8 @@ try:
 
     # load the dataset
     dataset_path = Path(
-        "/home/vbauer/MEGA/Master/Data Science/2024 WS/Applied Deep Learning/sky-image-classification/data/"
-    )
+        "../data/"
+    ).resolve()
     hyperparameters["dataset_path"] = str(dataset_path)
     dataset = SkyImageMultiLabelDataset(dataset_path)
     train_dataset = SkyImageMultiLabelDataset(dataset_path, transform=transform_train)
@@ -123,7 +123,7 @@ try:
     }
     hyperparameters["dataset_indices"] = train_test_val_indices
 
-    BATCH_SIZE = 32
+    BATCH_SIZE = 128
     hyperparameters["batch_size"] = BATCH_SIZE
 
     # create dataloaders, shuffle the training set, but not the validation and test sets
@@ -183,7 +183,7 @@ try:
     FRZAE_LAYERS = False
     hyperparameters["freeze_layers"] = FRZAE_LAYERS
 
-    best_jaccard_error = float("inf")
+    best_jaccard_error = -1
     best_jaccard_error_epoch = 0
     train_losses = []
     train_times = []
@@ -326,7 +326,8 @@ try:
         fig.suptitle(f"{training_run_data_path.name} - Validation Metrics")
         fig.tight_layout()
         plt.savefig(training_run_data_path / "validation_metrics_plot.png")
-
+        plt.close("all")
+        
     logging.info("Training complete")
 
     ###########################################################################
@@ -345,7 +346,7 @@ try:
     model = model.to(device)
 
     test_results = evaluate_model(
-        model, criterion, test_loader, device, PREDICTION_THRESHOLD, NUM_CLASSES
+        model, criterion, test_loader, device, PREDICTION_THRESHOLD
     )
 
     logging.info("Test set results:")
