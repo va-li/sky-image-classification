@@ -1,27 +1,23 @@
 # %%
 import pandas as pd
-import numpy as np
 import torch
 import torch.nn as nn
-import torch.optim as optim
-from torchvision import models
 from torchvision.transforms import v2
 from torch.utils.data import DataLoader
-from sklearn.metrics import accuracy_score, multilabel_confusion_matrix, jaccard_score
-from sklearn.model_selection import train_test_split
 from pathlib import Path
-from tqdm import tqdm
-import time
 import json
 import logging
-import matplotlib.pyplot as plt
 
 from dataset import SkyImageMultiLabelDataset
 from model import MultiLabelClassificationMobileNetV3Large
 from utils import evaluate_model
 
 training_run_data_path = Path(
-    "../data/training-runs/" + input("Enter the training run directory name (e.g. 'mobilenetv3_20241216-235028+0100'): ") + "/"
+    "../data/training-runs/"
+    + input(
+        "Enter the training run directory name (e.g. 'mobilenetv3_20241216-235028+0100'): "
+    )
+    + "/"
 ).resolve()
 
 logging.basicConfig(
@@ -43,9 +39,7 @@ logging.basicConfig(
 # %%
 try:
     # load the test dataset
-    dataset_path = Path(
-        "../data/"
-    ).resolve()
+    dataset_path = Path("../data/").resolve()
     hyperparameters_train = json.loads(
         (training_run_data_path / "hyperparameters.json").read_text()
     )
