@@ -10,6 +10,7 @@ from typing import Dict, Any
 
 from model import MultiLabelClassificationMobileNetV3Large
 
+
 def train_one_epoch(
     model: MultiLabelClassificationMobileNetV3Large,
     criterion: nn.Module,
@@ -78,7 +79,7 @@ def evaluate_model(
     criterion: nn.Module,
     dataloader: DataLoader,
     device: torch.device | str,
-    prediction_threshold: float
+    prediction_threshold: float,
 ) -> Dict[str, Any]:
     """Evaluate the model on a dataset and return the metrics and predictions.
 
@@ -132,7 +133,7 @@ def evaluate_model(
             all_true_labels.extend(labels.cpu().numpy())
 
     duration = time.time() - val_start
-    
+
     all_predicted_labels = np.array(all_predicted_labels).astype(int)
     all_true_labels = np.array(all_true_labels).astype(int)
 
@@ -158,7 +159,6 @@ def evaluate_model(
     class_recalls = []
     class_precisions = []
     for conf in confusion_matrices:
-
         # calculate the true positives, true negatives, false positives and false negatives
         tp = conf[1, 1]
         tn = conf[0, 0]
