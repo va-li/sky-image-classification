@@ -13,6 +13,7 @@ module_path = os.path.abspath(os.path.join('/home/vbauer/MEGA/Master/OIE/Thesis 
 if module_path not in sys.path:
     sys.path.append(module_path)
 
+# the camera_modelling package is custom software from my thesis project and currently not yet available publicly
 from camera_modelling import raw_processing, geometry, utils, image_operations
 from camera_modelling.camera import Camera, SensorParameters, IntrinsicCameraParameters, ExtrinsicCameraParameters
 
@@ -40,7 +41,7 @@ def tqdm_joblib(tqdm_object):
 
 sensor_params = SensorParameters.from_json_file('/home/vbauer/MEGA/Master/OIE/Thesis 2024/data/imx708_sensor_parameters.json')
 
-output_dir = Path(f'../../data/sky-images/')
+output_dir = Path('../../data/sky-images/')
 if not output_dir.exists():
     output_dir.mkdir(parents=True)
     
