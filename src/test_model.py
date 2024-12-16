@@ -53,7 +53,7 @@ try:
     transform_test_test = v2.Compose(
         [
             v2.ToTensor(),
-            v2.Resize((224, 224), interpolation=v2.InterpolationMode.BICUBIC),
+            v2.Resize((448, 448), interpolation=v2.InterpolationMode.BICUBIC),
             v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
