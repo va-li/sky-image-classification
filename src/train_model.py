@@ -53,7 +53,7 @@ try:
             v2.ColorJitter(
                 brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2
             ),  # randomly change the brightness, contrast, saturation and hue
-            v2.Resize((224, 224), interpolation=v2.InterpolationMode.BICUBIC),
+            v2.Resize((448, 448), interpolation=v2.InterpolationMode.BICUBIC),
             v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
@@ -61,7 +61,7 @@ try:
     transform_val_test = v2.Compose(
         [
             v2.ToTensor(),
-            v2.Resize((224, 224), interpolation=v2.InterpolationMode.BICUBIC),
+            v2.Resize((448, 448), interpolation=v2.InterpolationMode.BICUBIC),
             v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
@@ -162,17 +162,6 @@ try:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info(f"Using device: {device}")
 
-    try:
-        model.load_state_dict(
-            torch.load(
-                "/home/vbauer/MEGA/Master/Data Science/2024 WS/Applied Deep Learning/sky-image-classification/data/training-runs/mobilenetv3_20241216-170700+0100/best_model.pth",
-                map_location=torch.device(device),
-                weights_only=True,
-            )
-        )
-    except FileNotFoundError:
-        print("No pretrained weights found. Model will use random initialization.")
-
     model = model.to(device)
 
     # Define the loss function and optimizer
@@ -189,13 +178,13 @@ try:
     hyperparameters["learning_rate"] = LEARNING_RATE
 
     # Training loop
-    N_EPOCHS = 20
+    N_EPOCHS = 30
     hyperparameters["n_epochs"] = N_EPOCHS
     FRZAE_LAYERS = False
     hyperparameters["freeze_layers"] = FRZAE_LAYERS
 
-    best_val_loss = float("inf")
-    best_val_loss_epoch = 0
+    best_jaccard_error = float("inf")
+    best_jaccard_error_epoch = 0
     train_losses = []
     train_times = []
     val_losses = []
@@ -254,9 +243,9 @@ try:
             )
 
         # save the model if the validation loss is the best so far
-        if val_results["loss"] < best_val_loss:
-            best_val_loss = val_results["loss"]
-            best_val_loss_epoch = epoch
+        if val_results["mean_jaccard"] > best_jaccard_error:
+            best_jaccard_error = val_results["mean_jaccard"]
+            best_jaccard_error_epoch = epoch
             torch.save(model.state_dict(), training_run_data_path / "best_model.pth")
             logging.info(f"New best model saved at epoch {epoch+1}")
 
