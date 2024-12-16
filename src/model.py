@@ -18,7 +18,7 @@ class MultiLabelClassificationMobileNetV3Large(nn.Module):
         self.backbone = nn.Sequential(
             *list(
                 models.mobilenet_v3_large(
-                    weights=models.MobileNet_V3_Large_Weights
+                    weights=models.MobileNet_V3_Large_Weights.DEFAULT
                 ).children()
             )[:-1]
         )

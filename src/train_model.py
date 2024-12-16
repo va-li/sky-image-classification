@@ -13,6 +13,7 @@ import time
 import json
 import logging
 import matplotlib.pyplot as plt
+from typing import Dict, Any
 
 from dataset import SkyImageMultiLabelDataset
 from model import MultiLabelClassificationMobileNetV3Large
@@ -34,6 +35,209 @@ logging.basicConfig(
         logging.FileHandler(training_run_data_path / "training.log"),
     ],
 )
+
+
+def train_one_epoch(
+    model: MultiLabelClassificationMobileNetV3Large,
+    criterion: nn.Module,
+    optimizer: optim.Optimizer,
+    dataloader: DataLoader,
+    device: torch.device | str,
+    current_epoch: int,
+    num_epochs: int,
+) -> Dict[str, float]:
+    """Train the model for one epoch and return the loss and duration of the training epoch.
+
+    Parameters
+    ----------
+    model : MultiLabelClassificationMobileNetV3Large
+        The custom model to train.
+    criterion : nn.Module
+        The loss function to use for training, for this multi-label classification task, Binary Cross Entropy Loss should be used.
+    optimizer : optim.Optimizer
+        The optimizer to use for training, e.g., Adam or SGD.
+    dataloader : DataLoader
+        The DataLoader for the training dataset.
+    device : torch.device | str
+        The device to use for training, either 'cuda' for GPU or 'cpu' for CPU.
+    current_epoch : int
+        The current epoch number (0-based).
+    num_epochs : int
+        The total number of epochs to train.
+
+    Returns
+    -------
+    Dict[str, float]
+        A dictionary with the loss (`loss`) and duration in seconds (`duration`) of the training epoch.
+    """
+
+    train_start = time.time()
+
+    model.train()
+
+    running_loss = 0.0
+
+    for inputs, labels in tqdm(
+        # current_epoch is 0-based, so add 1 to the epoch number
+        dataloader,
+        desc=f"Training Epoch {current_epoch+1}/{num_epochs}",
+    ):
+        # move the inputs and labels to the same device as the model (GPU or CPU)
+        inputs, labels = inputs.to(device), labels.to(device).float()
+
+        # calculate the model outputs, backpropagate the loss and update the model parameters
+        optimizer.zero_grad()
+        outputs = model(inputs)
+        batch_loss = criterion(outputs, labels)
+        batch_loss.backward()
+        optimizer.step()
+
+        running_loss += batch_loss.item() * inputs.size(0)
+
+    epoch_loss = running_loss / len(dataloader.dataset)
+    train_duration = time.time() - train_start
+
+    return {"loss": epoch_loss, "duration": train_duration}
+
+
+def evaluate_model(
+    model: MultiLabelClassificationMobileNetV3Large,
+    criterion: nn.Module,
+    dataloader: DataLoader,
+    device: torch.device | str,
+    prediction_threshold: float,
+    num_classes: int,
+) -> Dict[str, Any]:
+    """Evaluate the model on a dataset and return the metrics and predictions.
+
+    The metrics returned are the loss, subset accuracy, mean jaccard score, mean precision, mean recall and mean accuracy.
+    Additionally, the predicted labels, true labels and confusion matrices for each class are returned.
+
+    Parameters
+    ----------
+    model : MultiLabelClassificationMobileNetV3Large
+        The custom model to evaluate.
+    criterion : nn.Module
+        The loss function to use for evaluation, for this multi-label classification task, Binary Cross Entropy Loss should be used.
+    dataloader : DataLoader
+        The DataLoader for the dataset to evaluate the model on.
+    device : torch.device | str
+        The device to use for evaluation, either 'cuda' for GPU or 'cpu' for CPU.
+    prediction_threshold : float
+        The threshold above which a model output is considered a positive prediction.
+    num_classes : int
+        The number of classes in the dataset.
+
+    Returns
+    -------
+    Dict[str, Any]
+        A dictionary with the evaluation metrics.
+        Supported keys and value types:
+        - scalars: loss (`loss`), duration in seconds (`duration`), subset accuracy (`subset_accuracy`), mean jaccard score (`mean_jaccard`),
+            mean precision (`mean_precision`), mean recall (`mean_recall`), mean accuracy (`mean_accuracy`)
+        - lists/numpy arrays: predicted labels for each observation(`predicted_labels`), true labels for each observation (`true_labels`),
+            confusion matrices for each class (`confusion_matrices`), class accuracies for each class (`class_accuracies`),
+            class recalls for each class (`class_recalls`) and class precisions for each class (`class_precisions`)
+    """
+
+    val_start = time.time()
+
+    model.eval()
+
+    loss = 0.0
+    all_predicted_labels = []
+    all_true_labels = []
+
+    with torch.no_grad():
+        for inputs, labels in tqdm(dataloader, desc="Evaluating model"):
+            inputs, labels = inputs.to(device), labels.to(device).float()
+
+            outputs = model(inputs)
+            batch_loss = criterion(outputs, labels)
+            loss += batch_loss.item() * inputs.size(0)
+
+            predicted_labels = outputs > prediction_threshold
+
+            all_predicted_labels.extend(predicted_labels.cpu().numpy())
+            all_true_labels.extend(labels.cpu().numpy())
+
+    duration = time.time() - val_start
+
+    loss /= len(dataloader.dataset)
+
+    # calculate the subset accuracy and jaccard score for the given dataset
+    val_subset_accuracy = accuracy_score(all_true_labels, all_predicted_labels)
+    val_mean_jaccard = jaccard_score(
+        all_true_labels, all_predicted_labels, average="samples"
+    )  # calculated for each sample and then averaged
+
+    # calculate confusion matrices (one-vs-rest) for each class
+    # they are ordered by the class index, but only the labels present in all_true_labels and all_preds are included
+    # so if a class is not present in the dataset, it is not included in the confusion matrix
+    confusion_matrices_sparse = multilabel_confusion_matrix(
+        all_true_labels, all_predicted_labels
+    )
+    labels_present = sorted(np.unique(all_true_labels + all_predicted_labels).tolist())
+
+    confusion_matrices = []
+    for class_label in range(num_classes):
+        if class_label in labels_present:
+            # class present
+            j = labels_present.index(class_label)
+            confusion_matrices.append(confusion_matrices_sparse[j])
+        else:
+            # class not present
+            confusion_matrices.append(np.full((2, 2), 0, dtype=int))
+
+    # calculate the accuracy, recall and precision for each class
+    # and the mean accuracy, recall and precision for the given dataset
+
+    # list of class accuracies, recalls and precisions
+    # ordered by the class index
+    class_accuracies = []
+    class_recalls = []
+    class_precisions = []
+    for conf in confusion_matrices:
+        if conf.sum() == 0:
+            # no samples for this class
+            class_accuracies.append(np.nan)
+            class_recalls.append(np.nan)
+            class_precisions.append(np.nan)
+            continue
+
+        # calculate the true positives, true negatives, false positives and false negatives
+        tp = conf[1, 1]
+        tn = conf[0, 0]
+        fp = conf[0, 1]
+        fn = conf[1, 0]
+
+        accuracy = (tp + tn) / (tp + tn + fp + fn)
+        class_accuracies.append(accuracy)
+        recall = tp / (tp + fn)
+        class_recalls.append(recall)
+        precision = tp / (tp + fp)
+        class_precisions.append(precision)
+
+    mean_precision = np.nanmean(class_precisions)
+    mean_recall = np.nanmean(class_recalls)
+    mean_accuracy = np.nanmean(class_accuracies)
+
+    return {
+        "loss": loss,
+        "duration": duration,
+        "subset_accuracy": val_subset_accuracy,
+        "mean_jaccard": val_mean_jaccard,
+        "mean_precision": mean_precision,
+        "mean_recall": mean_recall,
+        "mean_accuracy": mean_accuracy,
+        "predicted_labels": all_predicted_labels,
+        "true_labels": all_true_labels,
+        "confusion_matrices": confusion_matrices,
+        "class_accuracies": class_accuracies,
+        "class_recalls": class_recalls,
+        "class_precisions": class_precisions,
+    }
+
 
 try:
     ###########################################################################
@@ -64,10 +268,11 @@ try:
         ]
     )
 
-    # Hyperparameters dictionary
+    # hyperparameters dictionary
+    # all hyperparameters are stored in a dictionary and saved to a json file for reproducibility
     hyperparameters = {}
 
-    # Load the dataset
+    # load the dataset
     dataset_path = Path(
         "/home/vbauer/MEGA/Master/Data Science/2024 WS/Applied Deep Learning/sky-image-classification/data/"
     )
@@ -79,12 +284,12 @@ try:
     test_dataset = SkyImageMultiLabelDataset(dataset_path, transform=transform_val_test)
     hyperparameters["transform_val_test"] = str(transform_val_test)
 
-    # set the random seed for reproducibility
+    # a fixed seed for reproducibility (randomly chosen)
     SEED = 18759
     torch.manual_seed(SEED)
     hyperparameters["seed"] = SEED
 
-    # Split the dataset into training, validation and test sets
+    # split the dataset into training, validation and test sets
     VAL_SIZE_RATIO = 0.1
     VAL_SIZE = int(VAL_SIZE_RATIO * len(dataset))
     hyperparameters["val_size_ratio"] = VAL_SIZE_RATIO
@@ -94,15 +299,18 @@ try:
     TRAIN_SIZE_RATIO = 1 - VAL_SIZE_RATIO - TEST_SIZE_RATIO
     TRAIN_SIZE = len(dataset) - VAL_SIZE - TEST_SIZE
     hyperparameters["train_size_ratio"] = TRAIN_SIZE_RATIO
-    SHUFFLE_DATASET = False
+    RANDOM_SPLIT = False
+    hyperparameters["random_split"] = RANDOM_SPLIT
+    # first split the dataset into training+validation and test sets
     train_indices, test_indices = train_test_split(
         range(len(dataset)),
         test_size=TEST_SIZE,
         random_state=SEED,
-        shuffle=SHUFFLE_DATASET,
+        shuffle=RANDOM_SPLIT,
     )
+    # then split the training+validation set into training and validation sets
     train_indices, val_indices = train_test_split(
-        train_indices, test_size=VAL_SIZE, random_state=SEED, shuffle=SHUFFLE_DATASET
+        train_indices, test_size=VAL_SIZE, random_state=SEED, shuffle=RANDOM_SPLIT
     )
 
     train_dataset = torch.utils.data.Subset(train_dataset, train_indices)
@@ -143,10 +351,11 @@ try:
         f"Test set:\n{dataset.image_labels_df.iloc[test_dataset.indices].sum()}"
     )
 
+    NUM_CLASSES = len(dataset.label_names)
+    hyperparameters["num_classes"] = NUM_CLASSES
+
     # Initialize the model
-    model = MultiLabelClassificationMobileNetV3Large(
-        num_classes=len(dataset.label_names)
-    )
+    model = MultiLabelClassificationMobileNetV3Large(num_classes=NUM_CLASSES)
 
     hyperparameters["model"] = "MultiLabelClassificationMobileNetV3Large"
     hyperparameters["classifier"] = str(model.classifier)
@@ -169,6 +378,7 @@ try:
     hyperparameters["n_epochs"] = N_EPOCHS
     FRZAE_LAYERS = False
     hyperparameters["freeze_layers"] = FRZAE_LAYERS
+
     best_val_loss = float("inf")
     best_val_loss_epoch = 0
     train_losses = []
@@ -180,7 +390,7 @@ try:
     val_mean_recalls = []
     val_mean_jaccards = []
     val_times = []
-    
+
     # prediction threshold above which a model output is considered a positive prediction
     PREDICTION_THRESHOLD = 0.5
     hyperparameters["prediction_threshold"] = PREDICTION_THRESHOLD
@@ -190,145 +400,92 @@ try:
     )
 
     for epoch in range(N_EPOCHS):
-        train_start = time.time()
-
-        model.train()
         # freeze all layers except the classifier
         if FRZAE_LAYERS:
             model.freeze_backbone()
 
-        running_loss = 0.0
-        for inputs, labels in tqdm(
-            train_loader, desc=f"Training Epoch {epoch+1}/{N_EPOCHS}"
-        ):
-            inputs, labels = inputs.to(device), labels.to(device).float()
+        train_results = train_one_epoch(
+            model, criterion, optimizer, train_loader, device, epoch, N_EPOCHS
+        )
 
-            optimizer.zero_grad()
-            outputs = model(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
+        train_losses.append(train_results["loss"])
+        train_times.append(train_results["duration"])
 
-            running_loss += loss.item() * inputs.size(0)
+        val_results = evaluate_model(
+            model, criterion, val_loader, device, PREDICTION_THRESHOLD, NUM_CLASSES
+        )
 
-        epoch_loss = running_loss / len(train_loader.dataset)
-        train_losses.append(epoch_loss)
-        train_duration = time.time() - train_start
-        train_times.append(train_duration)
-
-        val_start = time.time()
-        model.eval()
-        val_loss = 0.0
-        all_preds = []
-        all_labels = []
-        with torch.no_grad():
-            for inputs, labels in tqdm(
-                val_loader, desc=f"Validation Epoch {epoch+1}/{N_EPOCHS}"
-            ):
-                inputs, labels = inputs.to(device), labels.to(device).float()
-                outputs = model(inputs)
-                loss = criterion(outputs, labels)
-                val_loss += loss.item() * inputs.size(0)
-
-                preds = outputs > PREDICTION_THRESHOLD
-                all_preds.extend(preds.cpu().numpy())
-                all_labels.extend(labels.cpu().numpy())
-
-        val_duration = time.time() - val_start
-        val_times.append(val_duration)
-
-        val_loss /= len(val_loader.dataset)
-        val_losses.append(val_loss)
+        val_losses.append(val_results["loss"])
+        val_times.append(val_results["duration"])
+        val_subset_accuracies.append(val_results["subset_accuracy"])
+        val_mean_jaccards.append(val_results["mean_jaccard"])
+        val_mean_precisions.append(val_results["mean_precision"])
+        val_mean_recalls.append(val_results["mean_recall"])
+        val_mean_accuracies.append(val_results["mean_accuracy"])
 
         logging.info(f"Results Epoch {epoch+1}/{N_EPOCHS}")
 
-    # show confusion matrix with label names and accuracy, recall, precision for each class in the test set
-    # as a nice table labeled with TRUE/FALSE for ground truth and predicted
-    conf_matrix = multilabel_confusion_matrix(all_labels, all_preds)
-    class_accuracies = []
-    class_recalls = []
-    class_precisions = []
-    for i, conf in enumerate(conf_matrix):
-        tp = conf[1, 1]
-        tn = conf[0, 0]
-        fp = conf[0, 1]
-        fn = conf[1, 0]
+        for class_label, conf in enumerate(val_results["confusion_matrices"]):
+            accuracy = val_results["class_accuracies"][class_label]
+            recall = val_results["class_recalls"][class_label]
+            precision = val_results["class_precisions"][class_label]
 
-        accuracy = (tp + tn) / (tp + tn + fp + fn)
-        class_accuracies.append(accuracy)
-        recall = tp / (tp + fn)
-        class_recalls.append(recall)
-        precision = tp / (tp + fp)
-        class_precisions.append(precision)
+            logging.info(f"Label: {dataset.label_names[class_label]}")
+            logging.info(
+                f"Accuracy: {accuracy:.3f}, Recall: {recall:.3f}, Precision: {precision:.3f}\n"
+                + pd.DataFrame(
+                    conf, index=["True 0", "True 1"], columns=["Pred 0", "Pred 1"]
+                ).to_markdown()
+            )
 
-        logging.info(f"Label: {dataset.label_names[i]}")
-        logging.info(
-            f"Accuracy: {accuracy:.3f}, Recall: {recall:.3f}, Precision: {precision:.3f}\n"
-            + pd.DataFrame(
-                conf, index=["True 0", "True 1"], columns=["Pred 0", "Pred 1"]
-            ).to_markdown()
-        )
-
-        # calculate the subset accuracy and jaccard score for the validation set
-        val_subset_accuracy = accuracy_score(all_labels, all_preds)
-        val_subset_accuracies.append(val_subset_accuracy)
-        val_mean_jaccard = jaccard_score(
-            all_labels, all_preds, average="samples"
-        )  # calculated for each sample and then averaged
-        val_mean_jaccards.append(val_mean_jaccard)
-        # calculate the mean accuracy, precision and recall for the validation set
-        val_mean_precisions.append(np.nanmean(class_precisions))
-        val_mean_recalls.append(np.mean(class_recalls))
-        val_mean_accuracies.append(np.mean(class_accuracies))
-
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
+        # save the model if the validation loss is the best so far
+        if val_results["loss"] < best_val_loss:
+            best_val_loss = val_results["loss"]
             best_val_loss_epoch = epoch
             torch.save(model.state_dict(), training_run_data_path / "best_model.pth")
             logging.info(f"New best model saved at epoch {epoch+1}")
 
         logging.info(f"Epoch {epoch+1} summary:")
         logging.info(
-            f"Train Loss: {epoch_loss:.4f}, Val Loss: {val_loss:.4f}, Time: train {train_duration:.0f}s + val {val_duration:.0f}s"
+            f"Train Loss: {train_results['loss']:.4f}, Val Loss: {val_results['loss']:.4f}, Time: train {train_results['duration']:.0f}s + val {val_results['duration']:.0f}s"
         )
         logging.info(
             f"Val Mean Accuracy: {val_mean_accuracies[-1]:.4f}, Val Mean Precision: {val_mean_precisions[-1]:.4f}, Val Mean Recall: {val_mean_recalls[-1]:.4f}"
         )
         logging.info(
-            f"Val Subset Accuracy: {val_subset_accuracy:.4f}, Val Mean Jaccard: {val_mean_jaccard:.4f}"
+            f"Val Subset Accuracy: {val_subset_accuracies[-1]:.4f}, Val Mean Jaccard: {val_mean_jaccards[-1]:.4f}"
         )
 
-        # save the metrics
-        metrics = pd.DataFrame(
+        # save the metrics of the training run so far
+        train_metrics = pd.DataFrame(
             {
                 "train_loss": train_losses,
-                "train_time": train_times,
+                "train_time_seconds": train_times,
                 "val_loss": val_losses,
                 "val_subset_accuracy": val_subset_accuracies,
                 "val_mean_accuracy": val_mean_accuracies,
                 "val_mean_jaccard": val_mean_jaccards,
                 "val_mean_precision": val_mean_precisions,
                 "val_mean_recall": val_mean_recalls,
-                "val_time": val_times,
+                "val_time_seconds": val_times,
             },
             index=range(1, epoch + 2),
         )
-        metrics.to_csv(
+        train_metrics.to_csv(
             training_run_data_path / "train_metrics.csv", index_label="epoch"
         )
 
-        # create plots of the training metrics, loss and accuracy in the same plot (left axis for loss, right axis for accuracy)
-        metrics = pd.read_csv(
-            training_run_data_path / "train_metrics.csv", index_col="epoch"
-        )
         fig, ax1 = plt.subplots()
 
         color = "tab:red"
         ax1.set_xlabel("Epoch")
         ax1.set_ylabel("Loss", color=color)
-        ax1.plot(metrics["train_loss"], color=color, label="Training")
+        ax1.plot(train_metrics["train_loss"], color=color, label="Training")
         ax1.plot(
-            metrics["val_loss"], color=color, linestyle="dashed", label="Validation"
+            train_metrics["val_loss"],
+            color=color,
+            linestyle="dashed",
+            label="Validation",
         )
         ax1.tick_params(axis="y", labelcolor=color)
         # legend in upper left corner
@@ -337,14 +494,14 @@ try:
         ax2 = ax1.twinx()
         color = "tab:blue"
         ax2.set_ylabel("Subset Accuracy", color=color)
-        ax2.plot(metrics["val_subset_accuracy"], color=color, label="Validation")
+        ax2.plot(train_metrics["val_subset_accuracy"], color=color, label="Validation")
         ax2.tick_params(axis="y", labelcolor=color)
         # legend in upper right corner
         ax2.legend(loc="upper right")
 
         # set the x-axis to be the epoch number
-        ax1.set_xticks(metrics.index)
-        ax1.set_xticklabels(metrics.index)
+        ax1.set_xticks(train_metrics.index)
+        ax1.set_xticklabels(train_metrics.index)
 
         fig.suptitle(f"{training_run_data_path.name} - Training Metrics")
         fig.tight_layout()
@@ -353,64 +510,56 @@ try:
 
         # plot mean jaccard, mean accuracy, mean precision and mean recall
         fig, ax = plt.subplots()
-        ax.plot(metrics["val_mean_jaccard"], label="Mean Jaccard")
-        ax.plot(metrics["val_mean_accuracy"], label="Mean Accuracy")
-        ax.plot(metrics["val_mean_precision"], label="Mean Precision")
-        ax.plot(metrics["val_mean_recall"], label="Mean Recall")
+        ax.plot(train_metrics["val_mean_jaccard"], label="Mean Jaccard")
+        ax.plot(train_metrics["val_mean_accuracy"], label="Mean Accuracy")
+        ax.plot(train_metrics["val_mean_precision"], label="Mean Precision")
+        ax.plot(train_metrics["val_mean_recall"], label="Mean Recall")
         ax.set_xlabel("Epoch")
         ax.set_ylabel("Score")
         ax.legend()
-        ax.set_xticks(metrics.index)
-        ax.set_xticklabels(metrics.index)
+        ax.set_xticks(train_metrics.index)
+        ax.set_xticklabels(train_metrics.index)
         fig.suptitle(f"{training_run_data_path.name} - Validation Metrics")
         fig.tight_layout()
         plt.savefig(training_run_data_path / "validation_metrics_plot.png")
 
-    logging.info("Training complete.")
+    logging.info("Training complete")
 
     ###########################################################################
     #                        Evaluation on test set                           #
     ###########################################################################
 
-    model.eval()
+    # load the best model of the training run
+    model = MultiLabelClassificationMobileNetV3Large(num_classes=NUM_CLASSES)
+    model.load_state_dict(
+        torch.load(
+            training_run_data_path / "best_model.pth",
+            map_location=torch.device(device),
+        )
+    )
+    model = model.to(device)
 
-    # evaluate model on test data
+    test_results = evaluate_model(
+        model, criterion, test_loader, device, PREDICTION_THRESHOLD, NUM_CLASSES
+    )
 
-    test_start = time.time()
+    logging.info("Test set results:")
+    logging.info(
+        f"Test Loss: {test_results['loss']:.4f}, Time: {test_results['duration']:.0f}s"
+    )
+    logging.info(
+        f"Test Mean Accuracy: {test_results['mean_accuracy']:.4f}, Test Mean Precision: {test_results['mean_precision']:.4f}, Test Mean Recall: {test_results['mean_recall']:.4f}"
+    )
+    logging.info(
+        f"Test Subset Accuracy: {test_results['subset_accuracy']:.4f}, Test Mean Jaccard: {test_results['mean_jaccard']:.4f}"
+    )
 
-    all_preds = []
-    all_labels = []
-    with torch.no_grad():
-        for inputs, labels in tqdm(test_loader):
-            inputs, labels = inputs.to(device), labels.to(device).float()
-            outputs = model(inputs)
+    for class_label, conf in enumerate(test_results["confusion_matrices"]):
+        accuracy = test_results["class_accuracies"][class_label]
+        recall = test_results["class_recalls"][class_label]
+        precision = test_results["class_precisions"][class_label]
 
-            preds = outputs > PREDICTION_THRESHOLD
-            all_preds.extend(preds.cpu().numpy())
-            all_labels.extend(labels.cpu().numpy())
-
-    test_duration = time.time() - test_start
-
-    # show confusion matrix with label names and accuracy, recall, precision for each class in the test set
-    # as a nice table labeled with TRUE/FALSE for ground truth and predicted
-    conf_matrix = multilabel_confusion_matrix(all_labels, all_preds)
-    class_accuracies = []
-    class_recalls = []
-    class_precisions = []
-    for i, conf in enumerate(conf_matrix):
-        tp = conf[1, 1]
-        tn = conf[0, 0]
-        fp = conf[0, 1]
-        fn = conf[1, 0]
-
-        accuracy = (tp + tn) / (tp + tn + fp + fn)
-        class_accuracies.append(accuracy)
-        recall = tp / (tp + fn)
-        class_recalls.append(recall)
-        precision = tp / (tp + fp)
-        class_precisions.append(precision)
-
-        logging.info(f"Label: {dataset.label_names[i]}")
+        logging.info(f"Label: {dataset.label_names[class_label]}")
         logging.info(
             f"Accuracy: {accuracy:.3f}, Recall: {recall:.3f}, Precision: {precision:.3f}\n"
             + pd.DataFrame(
@@ -418,24 +567,40 @@ try:
             ).to_markdown()
         )
 
-    # calculate the subset accuracy and jaccard score for the validation set
-    test_subset_accuracy = accuracy_score(all_labels, all_preds)
-    test_mean_jaccard = jaccard_score(
-        all_labels, all_preds, average="samples"
-    )  # calculated for each sample and then averaged
-    test_mean_precision = np.nanmean(class_precisions)
-    test_mean_recall = np.mean(class_recalls)
-    test_mean_accuracy = np.mean(class_accuracies)
-
-    logging.info(f"Test time {test_duration:.0f}s")
-    logging.info(
-        f"Test Mean Accuracy: {test_mean_accuracy:.4f}, Test Mean Precision: {test_mean_precision:.4f}, Test Mean Recall: {test_mean_recall:.4f}"
-    )
-    logging.info(
-        f"Test Subset Accuracy: {test_subset_accuracy:.4f}, Test Mean Jaccard: {test_mean_jaccard:.4f}"
+    # save the test prediciton results
+    test_results_df = pd.DataFrame(
+        {
+            "dataset_indices": test_dataset.indices,
+            "true_labels": test_results["true_labels"],
+            "predicted_labels": test_results["predicted_labels"],
+        },
+        index=dataset.image_labels_df.index[test_dataset.indices].index.tolist(),
     )
 
-    logging.info("Finished evaluation")
+    test_results_df.to_csv(training_run_data_path / "test_results.csv")
+
+    # save the test metrics
+    test_metrics = {
+        "test_loss": test_results["loss"],
+        "test_time_seconds": test_results["duration"],
+        "test_subset_accuracy": test_results["subset_accuracy"],
+        "test_mean_accuracy": test_results["mean_accuracy"],
+        "test_mean_jaccard": test_results["mean_jaccard"],
+        "test_mean_precision": test_results["mean_precision"],
+        "test_mean_recall": test_results["mean_recall"],
+        "test_confusion_matrices": list(
+            map(lambda conf: conf.tolist(), test_results["confusion_matrices"])
+        ),
+        "test_class_accuracies": test_results["class_accuracies"].tolist(),
+        "test_class_recalls": test_results["class_recalls"].tolist(),
+        "test_class_precisions": test_results["class_precisions"].tolist(),
+    }
+
+    (training_run_data_path / "test_metrics.json").write_text(
+        json.dumps(test_metrics, indent=4)
+    )
+
+    logging.info("Evaluations complete")
 
 except Exception as e:
     # print the full traceback to the log file

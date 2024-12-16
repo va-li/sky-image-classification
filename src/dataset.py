@@ -84,22 +84,24 @@ class SkyImageMultiLabelDataset(Dataset):
         )
 
         # add metadata columns
-        self.image_metadata_df = pd.DataFrame(
-            index=self.image_labels_df.index, columns=["timestamp", "date"]
-        )
+        def timestamp_from_filename(timestamp_string: str) -> str:
+            datetime = timestamp_string[:26]
+            timezone = timestamp_string[26:].replace('-', ':')
+            return f'{datetime}{timezone}'
+        
+        self.image_metadata_df = pd.DataFrame(index=self.image_labels_df.index)
         # add a column with the timestamp
         LENGTH_ISO8601_TIMESTAMP_WITH_TIMEZONE = 32
         # split of the file extension and get the timestamp part
-        self.image_metadata_df["timestamp"] = self.image_metadata_df.index.str.split(
-            "."
-        ).str[0][-LENGTH_ISO8601_TIMESTAMP_WITH_TIMEZONE:]
+        self.image_metadata_df['timestamp'] = self.image_metadata_df.index.to_series()
+        self.image_metadata_df['timestamp'] = self.image_metadata_df['timestamp'].apply(lambda x: x.split('.')[0][-LENGTH_ISO8601_TIMESTAMP_WITH_TIMEZONE:])
+        self.image_metadata_df['timestamp'] = self.image_metadata_df['timestamp'].apply(timestamp_from_filename)
         # convert the timestamp to a datetime object
-        self.image_metadata_df["timestamp"] = pd.to_datetime(
-            self.image_metadata_df["timestamp"], format="ISO8601"
-        )
-
+        # e.g. 2024-09-26T13-45-00-012175+00-00
+        self.image_metadata_df['timestamp'] = pd.to_datetime(self.image_metadata_df['timestamp'], format='%Y-%m-%dT%H-%M-%S-%f%z')
+        
         # add a column with the date
-        self.image_metadata_df["date"] = self.image_metadata_df["timestamp"].dt.date
+        self.image_metadata_df['date'] = self.image_metadata_df['timestamp'].dt.date
 
     def __len__(self):
         return len(self.image_labels_df)
