@@ -41,6 +41,7 @@ class SkyImageMultiLabelDataset(Dataset):
         self.image_labels_file_path = root_dir / image_labels_file
         self.label_names_file_path = root_dir / label_names_file
         self.transform = transform
+        self.image_cache = {}
 
         # read the label names
         with open(self.label_names_file_path, "r") as f:
@@ -119,6 +120,9 @@ class SkyImageMultiLabelDataset(Dataset):
         Tuple[np.ndarray, np.ndarray]
             The image and its labels as numpy arrays (image dims: H x W x C, label dims: 1 x num_classes)
         """
+        
+        if idx in self.image_cache:
+            return self.image_cache[idx]
 
         # load the image from disk
         image_file_name = self.image_labels_df.index[idx]
@@ -131,6 +135,8 @@ class SkyImageMultiLabelDataset(Dataset):
 
         # get the labels as a numpy array, convert to float32 for PyTorch
         labels = self.image_labels_df.iloc[idx].values.astype(np.float32)
+        
+        self.image_cache[idx] = (image, labels)
 
         return image, labels
 
