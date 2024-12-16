@@ -3,7 +3,7 @@ import numpy as np
 from torchvision import models, transforms
 from torchsummary import summary
 
-import cv2
+import skimage
 
 classes = {
     0: "tench, Tinca tinca",
@@ -1024,6 +1024,8 @@ net = models.mobilenet_v3_large(weights=models.MobileNet_V3_Large_Weights)
 # set the model to evaluation mode, so no gradients are calculated
 net.eval()
 
+print(net)
+
 # show the model structure
 summary(net, (3, 224, 224), device=device)
 
@@ -1036,7 +1038,7 @@ while True:
         break 
 
     # read image as RGB (not opencv's default BGR)
-    image = cv2.imread(file_path_str)
+    image = skimage.io.imread(file_path_str)
     image = image = image[:, :, [2, 1, 0]]
 
     # preprocess image
@@ -1049,9 +1051,9 @@ while True:
     image_preprocessed = image_preprocessed * [0.229, 0.224, 0.225] + [0.485, 0.456, 0.406]
     image_preprocessed = np.clip(image_preprocessed, 0, 1)
     # convert to BGR and scale to 0-255 for opencv
-    image_preprocessed = cv2.cvtColor(image_preprocessed.astype(np.float32), cv2.COLOR_RGB2BGR)
+    
     image_preprocessed = (image_preprocessed * 255).astype(np.uint8)
-    cv2.imwrite("preprocessed.jpg", image_preprocessed)
+    skimage.io.imsave("preprocessed.jpg", image_preprocessed)
 
     # create a mini-batch as expected by the model
     input_batch = input_tensor.unsqueeze(0)
