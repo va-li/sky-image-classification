@@ -20,10 +20,10 @@ The dataset consists of 9755 daytime hemispherical sky images collected from May
 
 Each image is fused from the original raw capture of five increasing exposures into one high dynamic range image (HDR) to avoid overexposed pixels from the bright sunlight and capture details in clouds at the same time. The images from one camera have a resolution of 884x850 pixels and 892x864 pixels from the other camera. Below are examples for each of the five classes that we want to detect: **clear sky**, **clouds**, **soiling**, **water droplets inside** (from dew), and **water droplets outside** (from rain).
 
-| Clear Sky | Clouds | Soiling | Water droplets inside | Water droplets outside |
-|-----------|--------|---------|-----------------------|------------------------|
-| ![Clear Sky](dissemination/images/2024-08-23T09-30-00-006516+00-00.png)| ![Clouds](dissemination/images/2024-08-24T10-00-00-006417+00-00.png) | ![Soiling](dissemination/images/2024-07-21T14-30-00-006321+00-00_annotated.png) | ![Water droplets inside](dissemination/images/2024-09-17T12-45-00-006205+00-00_annotated.png) | ![Water droplets outside](dissemination/images/2024-09-04T12-45-00-006141+00-00.png) |
-| Clear sky. Mutually exclusive with *Clouds* class. | Clouds are visible in the sky. Mutually exclusive with *Clear Sky* class. | Dirt on the dome protecting the lens is visible, mostly by reflection around the sun, but also in other areas of the dome. | Water droplets from dew inside of the dome protecting the lens are visible. | Water droplets outside from rain on the dome protecting the lens are visible. |
+| Clear Sky                                                               | Clouds                                                                    | Soiling                                                                                                                    | Water droplets inside                                                                         | Water droplets outside                                                               |
+|-------------------------------------------------------------------------|---------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------|
+| ![Clear Sky](dissemination/images/2024-08-23T09-30-00-006516+00-00.png) | ![Clouds](dissemination/images/2024-08-24T10-00-00-006417+00-00.png)      | ![Soiling](dissemination/images/2024-07-21T14-30-00-006321+00-00_annotated.png)                                            | ![Water droplets inside](dissemination/images/2024-09-17T12-45-00-006205+00-00_annotated.png) | ![Water droplets outside](dissemination/images/2024-09-04T12-45-00-006141+00-00.png) |
+| Clear sky. Mutually exclusive with *Clouds* class.                      | Clouds are visible in the sky. Mutually exclusive with *Clear Sky* class. | Dirt on the dome protecting the lens is visible, mostly by reflection around the sun, but also in other areas of the dome. | Water droplets from dew inside of the dome protecting the lens are visible.                   | Water droplets outside from rain on the dome protecting the lens are visible.        |
 
 Looking at the third and fourth images we can see that the classes can overlap (clouds can be present with rain or dew). This is why we need a multi-label classification approach.
 
@@ -59,12 +59,131 @@ Looking at the third and fourth images we can see that the classes can overlap (
 
 ---
 
-## Update 2024-10-29
+# Assignment 2 - Hacking
 
-- Created a dataset by merging raw exposures into HDR images. They amount to 9780 images.
-- Created a custom PyTorch dataset class [SkyImageMultiLabelDataset](./src/dataset.py).
-- Successfully followed pytorch guide on [Real Time Inference on Raspberry Pi 4](https://pytorch.org/tutorials/intermediate/realtime_rpi.html) to test running a MobileNetV3 model on the Raspberry Pi 4.
-- Decided to use the MobileNetV3 model as a starting point for the project, instead of TripleNet. Reasons: weights for MobileNetV3 are available in PyTorch, but not for TripleNet; MobileNetV3 expects an input size of 224x224, which is closer to the resolution of the images in the dataset, while TripleNet expects 32x32 images.
+Error metric: [**Jaccard Score** or **Intersection over Union (IoU)**](https://en.wikipedia.org/wiki/Jaccard_index)
+
+It is a measure of the similarity between two sets and defined as the size of the intersection divided by the size of the union of the sets. A high Jaccard Score means the model only predicts the correct labels and no false positives.
+
+In the context of my multi-label classification problem, I calculate the Jaccard Score for each sample and then average over all samples. The rational behind choosing the Jaccard Score is that it allows to measure how well the model predicts multiple labels for a single image, and it is comparable for a different number of labels per image.
+
+|                         | Mean Jaccard Score |
+|-------------------------|-------------------:|
+| Target                  |               0.75 |
+| **Achieved** (test set) |           **0.88** |
+
+Despite trying data augmentation and higher resolution images than what MobileNetV3 supports by default, the best performing model on the validation set was the original MobileNetV3 model trained on 224x224 images without data augmentation. 
+
+Further, I also look at the macro precision and recall, which are the average of the precision and recall for each class, to see if the model is "fair" in predicting all classes.
+
+|                         | Macro Precision | Macro Recall |
+|-------------------------|----------------:|-------------:|
+| **Achieved** (test set) |        **0.73** |     **0.87** |
+
+And in a bit more detail for each class in test set:
+
+| Class     | Macro Precision | Macro Recall | **# labels** |
+|-----------|----------------:|-------------:|-------------:|
+| clouds    |           0.971 |        0.989 |          470 |
+| rain      |           0.888 |        0.841 |          113 |
+| dew       |           0.986 |        0.719 |          192 |
+| clear sky |           0.878 |        0.720 |           50 |
+| soiling   |           0.625 |        0.370 |           54 |
+
+
+Time spent on each task:
+
+- Dataset Collection:
+  - Collecting and preprocessing the images: **3 hours**
+  - Manual labeling of the dataset: **18 hours**
+- Designing, Building and Training the Network:
+    - Setting up the training pipeline: **2 hours**
+    - Adapting MobileNetV3 for multi-label classification: **1 hour**
+    - Training the model and experimenting with hyperparameters and debugging: **47 hours**
+- Building the Application:
+    - Testing the model on the Raspberry Pi 4: **4 hours**
+    - Developing a basic web interface for uploading and classifying images: **14 hours**
+
+**Total: 89 hours**
+
+---
+
+## Update 2024-12-17
+
+### Dataset
+
+- 5201 (53%) images are labeled, 4554 (47%) images are left to label, 79 (1%) were excluded (9780 images in total).
+- 1910 (37%) images are labeled with one label, 2493 (48%) with two labels, 785 (15%) with three labels and  13 (<1%) with four labels.
+- Previously, the model was trained by shuffling the data first and then splitting it into training, validation and test sets. This was a bad choice, because images from the same day were in both the training, validation and test sets. This caused data leakage and the model to perform very well on the test set (see high metrics in the previous updates). To fix this, I now split the data without shuffling. Since they are ordered by capture timestamp, no data leakage should occur and the metrics should be more realistic.
+
+Number of labels assigned to images per class:
+
+|     Class     | # labels |
+|:-------------:|---------:|
+|  **clouds**   |     4172 |
+|   **rain**    |      537 |
+|    **dew**    |     1437 |
+| **clear sky** |     1029 |
+|  **soiling**  |     2128 |
+|   **Total**   | **9303** |
+
+Number of images per label combination (only existing label combinations shown):
+
+|  clouds   | rain  |  dew  | clear sky | soiling | # images |
+|:---------:|:-----:|:-----:|:---------:|:-------:|---------:|
+|           |       |       |   **X**   |         |      487 |
+|           |       |       |   **X**   |  **X**  |      328 |
+|           |       | **X** |   **X**   |         |       79 |
+|           |       | **X** |   **X**   |  **X**  |      118 |
+|           | **X** |       |   **X**   |         |        4 |
+|           | **X** |       |   **X**   |  **X**  |        2 |
+|           | **X** | **X** |   **X**   |         |       11 |
+|   **X**   |       |       |           |         |     1423 |
+|   **X**   |       |       |           |  **X**  |     1213 |
+|   **X**   |       | **X** |           |         |      616 |
+|   **X**   |       | **X** |           |  **X**  |      400 |
+|   **X**   | **X** |       |           |         |      253 |
+|   **X**   | **X** |       |           |  **X**  |       54 |
+|   **X**   | **X** | **X** |           |         |      200 |
+|   **X**   | **X** | **X** |           |  **X**  |       13 |
+| **Total** |       |       |           |         | **5201** |
+
+
+### Models
+
+- The original MobileNetV3 model takes images of size 224x224 as input. I wanted to try if the model performs better with higher resolution images. Therefore, I adapted the model with an additional convolutional layer in the beginning to handle 448x448 images. The model was trained on the same data as before, but with the higher resolution images. Results are shown below.
+- Also, I tried augmenting the data with random rotations, flips, and color jittering. Results are shown below.
+- Only very late in the project I realized that caching the entire dataset (2.6GB on disk) in memory is not only possible, but reduces my training time massively. Without caching a single epoch took around 7 minutes. After caching, every epoch after the first took only a few seconds.
+
+Results of the different experiments (more hyperparameters were tested, but only the best performing models are shown):
+
+| Rank | Data Augmentation | Image Size | Mean Jaccard (val) | Macro Precision (val) | Macro Recall (val) | Train time (minutes) |
+|-----:|:------------------|-----------:|-------------------:|----------------------:|-------------------:|---------------------:|
+|    1 | False             |        224 |           **0.82** |              **0.84** |           **0.77** |                 5.22 |
+|    3 | True              |        224 |               0.82 |                   0.8 |               0.71 |                 9.49 |
+|    5 | False             |        448 |               0.75 |                  0.77 |               0.61 |                 4.33 |
+|    6 | True              |        448 |               0.72 |                  0.78 |               0.61 |                 9.04 |
+
+## Update 2024-11-21
+
+- First useful version of the model is trained.
+- Training was done with fine-tuning the MobileNetV3Large model and using data augmentation.
+- Training was done on 3222 images, validated on 402 images. Test set not yet used.
+- Training time was around 2h40m on my laptop's NVIDIA GeForce MX150.
+- The model achieves on the validation set a subset accuracy of 89% and a mean Jaccard score of 94%, with a macro averaged precision of 95% and recall of 93% over all five classes.
+- Added basic webapp to classify images using the trained model. The webapp is available in [./src/webapp/](./src/webapp/).
+
+**Example of model output on unseen images**:
+
+| Image                                                                   | Prediciton                                                        |
+|-------------------------------------------------------------------------|-------------------------------------------------------------------|
+| ![](dissemination/images/daedalus_2024-06-01T09-30-00-006100+00-00.jpg) | `clouds: 1.00 rain: 0.93 soiling: 0.36 dew: 0.32 clear sky: 0.00` |
+| ![](dissemination/images/daedalus_2024-06-26T07-00-00-006205+00-00.jpg) | `clouds: 1.00 dew: 0.98 soiling: 0.70 rain: 0.00 clear sky: 0.00` |
+| ![](dissemination/images/ikarus_2024-05-22T15-57-58-017680+00-00.jpg)   | `clear sky: 0.99 clouds: 0.01 soiling: 0.00 dew: 0.00 rain: 0.00` |
+
+**Screenshots of the webapp**:
+
+![Webapp Screenshot 1](dissemination/images/webapp_screenshot_2024-11-21_1.png)
 
 ## Update 2024-11-20
 
@@ -80,23 +199,9 @@ Looking at the third and fourth images we can see that the classes can overlap (
 
 ![Random Sample of Excluded Images](dissemination/images/excluded_data_sample_2024-11-20.png)
 
-## Update 2024-11-21
+## Update 2024-10-29
 
-- First useful version of the model is trained and saved in [./data/training-runs/mobilenetv3_20241120-195102+0100/best_model.pth](./data/training-runs/mobilenetv3_20241120-195102+0100/best_model.pth).
-- Training was done with fine-tuning the MobileNetV3Large model and using data augmentation.
-- Training was done on 3222 images, validated on 402 images. Test set not yet used.
-- Training time was around 2h40m on my laptop's NVIDIA GeForce MX150.
-- The model achieves on the validation set a subset accuracy of 89% and a mean Jaccard score of 94%, with a macro averaged precision of 95% and recall of 93% over all five classes.
-- Added basic webapp to classify images using the trained model. The webapp is available in [./src/webapp/](./src/webapp/).
-
-**Example of model output on unseen images**:
-
-| Image | Prediciton|
-| --- | --- |
-| ![](dissemination/images/daedalus_2024-06-01T09-30-00-006100+00-00.jpg) | `clouds: 1.00 rain: 0.93 soiling: 0.36 dew: 0.32 clear sky: 0.00` |
-| ![](dissemination/images/daedalus_2024-06-26T07-00-00-006205+00-00.jpg) | `clouds: 1.00 dew: 0.98 soiling: 0.70 rain: 0.00 clear sky: 0.00` |
-| ![](dissemination/images/ikarus_2024-05-22T15-57-58-017680+00-00.jpg) | `clear sky: 0.99 clouds: 0.01 soiling: 0.00 dew: 0.00 rain: 0.00` |
-
-**Screenshots of the webapp**:
-
-![Webapp Screenshot 1](dissemination/images/webapp_screenshot_2024-11-21_1.png)
+- Created a dataset by merging raw exposures into HDR images. They amount to 9780 images.
+- Created a custom PyTorch dataset class [SkyImageMultiLabelDataset](./src/dataset.py).
+- Successfully followed pytorch guide on [Real Time Inference on Raspberry Pi 4](https://pytorch.org/tutorials/intermediate/realtime_rpi.html) to test running a MobileNetV3 model on the Raspberry Pi 4.
+- Decided to use the MobileNetV3 model as a starting point for the project, instead of TripleNet. Reasons: weights for MobileNetV3 are available in PyTorch, but not for TripleNet; MobileNetV3 expects an input size of 224x224, which is closer to the resolution of the images in the dataset, while TripleNet expects 32x32 images.
