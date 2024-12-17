@@ -1,19 +1,15 @@
 import pandas as pd
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torchvision.transforms import v2
 from torch.utils.data import DataLoader
-from sklearn.metrics import accuracy_score, multilabel_confusion_matrix, jaccard_score
 from sklearn.model_selection import train_test_split
 from pathlib import Path
-from tqdm import tqdm
 import time
 import json
 import logging
 import matplotlib.pyplot as plt
-from typing import Dict, Any
 
 from dataset import SkyImageMultiLabelDataset
 from model import MultiLabelClassificationMobileNetV3Large
@@ -41,6 +37,8 @@ try:
     ###########################################################################
     #                                  Training                               #
     ###########################################################################
+    
+    MODEL_IMAGE_INPUT_SIZE = 224
 
     # Transformations for training, validation and test sets
     transform_train = v2.Compose(
@@ -53,7 +51,7 @@ try:
             v2.ColorJitter(
                 brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2
             ),  # randomly change the brightness, contrast, saturation and hue
-            v2.Resize((224, 224), interpolation=v2.InterpolationMode.BICUBIC),
+            v2.Resize((MODEL_IMAGE_INPUT_SIZE, MODEL_IMAGE_INPUT_SIZE), interpolation=v2.InterpolationMode.BICUBIC),
             v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
@@ -61,7 +59,7 @@ try:
     transform_val_test = v2.Compose(
         [
             v2.ToTensor(),
-            v2.Resize((224, 224), interpolation=v2.InterpolationMode.BICUBIC),
+            v2.Resize((MODEL_IMAGE_INPUT_SIZE, MODEL_IMAGE_INPUT_SIZE), interpolation=v2.InterpolationMode.BICUBIC),
             v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
@@ -69,11 +67,11 @@ try:
     # hyperparameters dictionary
     # all hyperparameters are stored in a dictionary and saved to a json file for reproducibility
     hyperparameters = {}
+    
+    hyperparameters["model_image_input_size"] = MODEL_IMAGE_INPUT_SIZE
 
     # load the dataset
-    dataset_path = Path(
-        "../data/"
-    ).resolve()
+    dataset_path = Path("../data/").resolve()
     hyperparameters["dataset_path"] = str(dataset_path)
     dataset = SkyImageMultiLabelDataset(dataset_path)
     train_dataset = SkyImageMultiLabelDataset(dataset_path, transform=transform_train)
@@ -153,7 +151,7 @@ try:
     hyperparameters["num_classes"] = NUM_CLASSES
 
     # Initialize the model
-    model = MultiLabelClassificationMobileNetV3Large(num_classes=NUM_CLASSES)
+    model = MultiLabelClassificationMobileNetV3Large(num_classes=NUM_CLASSES, larger_input_size=False)
 
     hyperparameters["model"] = "MultiLabelClassificationMobileNetV3Large"
     hyperparameters["classifier"] = str(model.classifier)
@@ -180,8 +178,6 @@ try:
     # Training loop
     N_EPOCHS = 30
     hyperparameters["n_epochs"] = N_EPOCHS
-    FRZAE_LAYERS = False
-    hyperparameters["freeze_layers"] = FRZAE_LAYERS
 
     best_jaccard_error = -1
     best_jaccard_error_epoch = 0
@@ -204,9 +200,6 @@ try:
     )
 
     for epoch in range(N_EPOCHS):
-        # freeze all layers except the classifier
-        if FRZAE_LAYERS:
-            model.freeze_backbone()
 
         train_results = train_one_epoch(
             model, criterion, optimizer, train_loader, device, epoch, N_EPOCHS
@@ -327,12 +320,17 @@ try:
         fig.tight_layout()
         plt.savefig(training_run_data_path / "validation_metrics_plot.png")
         plt.close("all")
-        
+
     logging.info("Training complete")
 
     ###########################################################################
     #                        Evaluation on test set                           #
     ###########################################################################
+    
+    # log to test.log now to keep the training log clean and to stdout
+    logging.getLogger().handlers[1].stream = open(
+        training_run_data_path / "test.log", "w"
+    )
 
     # load the best model of the training run
     model = MultiLabelClassificationMobileNetV3Large(num_classes=NUM_CLASSES)
