@@ -121,23 +121,33 @@ Required software:
 - NVIDIA CUDA Toolkit
 - Python packages: numpy, pandas, scikit-learn, scikit-image, tqdm, matplotlib, tabulate, torch, torchvision, torchaudio
 
-Either install them manually or run [./install_train_dependencies.sh](./install_train_dependencies.sh) to install the system requirements, create a virtual environment in the project directory, and install the Python packages all at once.
+Either install them manually or run [install_train_dependencies.sh](./install_train_dependencies.sh) to install the system requirements, create a virtual environment in the project directory, and install the Python packages all at once.
 
 There is a python requirement file in the repository, but despite being created after the installation of all dependencies with the install script, it does not work for me to install the python dependencies with `pip install -r requirements_train.txt`. I think this is because the right PyTorch version is not available on PyPi, but only on via the PyTorch index.
 
-The dataset is not included in the repository, but can be provided on request. The dataset should be placed in [./data/](./data/).
+The dataset is not included in the repository, but can be provided on request. The dataset should be placed in [data/](./data/).
 
-To train the model, go into [./src/] and run [./train_model.py](./src/train_model.py).
+To train the model, go into [src/](./src/) and run [train_model.py](./src/train_model.py).
 
-The training script will save all training data and the best model in a folder under `./data/training_runs/` with a timestamp as the folder name. The training script will also save the model with the best validation loss and the training history as a CSV file in the training run folder.
+The training script will save all training data and the best model in a folder under `data/training_runs/` with a timestamp as the folder name. The training script will also save the model with the best jaccard score and the training history as a CSV file and plot in the training run folder.
+
+To test a model separately from the training loop on the test set, go into [src/](./src/) agian run [test_model.py](./src/test_model.py). The script will load the best model from the training run folder and test it on the test set. The results will saved in the training run folder.
 
 ## Webapp
 
 Required software:
+
 - Python 3.11
 - Python 3.11 venv
 
-Go into [./src/webapp/](./src/webapp/) and run [./install_webapp_dependencies.sh](./src/webapp/install_webapp_dependencies.sh) to install the system requirements, create a virtual environment in the project directory, and install the Python packages all at once.
+Go into [src/webapp/](./src/webapp/) and run [install_webapp_dependencies.sh](./src/webapp/install_webapp_dependencies.sh) to install the system requirements, create a virtual environment in the project directory, and install the Python packages all at once.
+
+Then pick the best model from one of the training runs (`best_model.pth`) and place it in [src/webapp/classifier](./src/webapp/classifier/).
+
+To start the webapp, run [run.sh](./src/webapp/run_webapp.sh). The webapp will be available at [http://localhost:8000](http://localhost:8000).
+
+![Webapp Screenshot 1](dissemination/images/webapp_screenshot_2024-11-21_1.png)
+
 ---
 
 ## Update 2024-12-17
@@ -191,7 +201,7 @@ Results of the different experiments (more hyperparameters were tested, but only
 
 | Rank | Data Augmentation | Image Size | Mean Jaccard (val) | Macro Precision (val) | Macro Recall (val) | Train time (minutes) |
 |-----:|:------------------|-----------:|-------------------:|----------------------:|-------------------:|---------------------:|
-|    1 | False             |        224 |           **0.82** |              **0.84** |           **0.77** |                 5.22 |
+|    1 | False             |        224 |           **0.82** |              **0.88** |           **0.70** |                 5.28 |
 |    3 | True              |        224 |               0.82 |                   0.8 |               0.71 |                 9.49 |
 |    5 | False             |        448 |               0.75 |                  0.77 |               0.61 |                 4.33 |
 |    6 | True              |        448 |               0.72 |                  0.78 |               0.61 |                 9.04 |
