@@ -70,7 +70,7 @@ try:
     NUM_CLASSES = hyperparameters_train["num_classes"]
 
     # load the model
-    model = MultiLabelClassificationMobileNetV3Large(num_classes=NUM_CLASSES)
+    model = MultiLabelClassificationMobileNetV3Large(num_classes=NUM_CLASSES, image_input_size=hyperparameters_train["model_image_input_size"])
     try:
         model.load_state_dict(
             torch.load(

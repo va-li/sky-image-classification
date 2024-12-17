@@ -44,13 +44,13 @@ try:
     transform_train = v2.Compose(
         [
             v2.ToTensor(),  # first, convert image (numpy array) to PyTorch tensor, so that further processing can be done
-            v2.RandomHorizontalFlip(),  # randomly flip and rotate
-            v2.RandomRotation(
-                (0, 180)
-            ),  # randomly rotate the image between 0 and 180 degrees
-            v2.ColorJitter(
-                brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2
-            ),  # randomly change the brightness, contrast, saturation and hue
+            # v2.RandomHorizontalFlip(),  # randomly flip and rotate
+            # v2.RandomRotation(
+            #     (0, 180)
+            # ),  # randomly rotate the image between 0 and 180 degrees
+            # v2.ColorJitter(
+            #     brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2
+            # ),  # randomly change the brightness, contrast, saturation and hue
             v2.Resize((MODEL_IMAGE_INPUT_SIZE, MODEL_IMAGE_INPUT_SIZE), interpolation=v2.InterpolationMode.BICUBIC),
             v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
@@ -151,7 +151,7 @@ try:
     hyperparameters["num_classes"] = NUM_CLASSES
 
     # Initialize the model
-    model = MultiLabelClassificationMobileNetV3Large(num_classes=NUM_CLASSES, larger_input_size=False)
+    model = MultiLabelClassificationMobileNetV3Large(num_classes=NUM_CLASSES, image_input_size=MODEL_IMAGE_INPUT_SIZE)
 
     hyperparameters["model"] = "MultiLabelClassificationMobileNetV3Large"
     hyperparameters["classifier"] = str(model.classifier)
@@ -173,11 +173,18 @@ try:
     )
     LEARNING_RATE = 0.001
     optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE)
+    hyperparameters["optimizer"] = "AdamW"
     hyperparameters["learning_rate"] = LEARNING_RATE
+    
+    # add plateu lr scheduler
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=10)
+    hyperparameters["scheduler"] = "ReduceLROnPlateau"
 
     # Training loop
-    N_EPOCHS = 30
+    N_EPOCHS = 60
     hyperparameters["n_epochs"] = N_EPOCHS
+    FREEZE_BACKBONE = False
+    hyperparameters["freeze_backbone"] = FREEZE_BACKBONE
 
     best_jaccard_error = -1
     best_jaccard_error_epoch = 0
@@ -200,6 +207,13 @@ try:
     )
 
     for epoch in range(N_EPOCHS):
+        
+        if FREEZE_BACKBONE:
+            # freeze the backbone layers for the first few epochs
+            if epoch == 0:
+                model.freeze_pretrained_layers()
+            if epoch == 20:
+                model.unfreeze_pretrained_layers()
 
         train_results = train_one_epoch(
             model, criterion, optimizer, train_loader, device, epoch, N_EPOCHS
@@ -211,6 +225,13 @@ try:
         val_results = evaluate_model(
             model, criterion, val_loader, device, PREDICTION_THRESHOLD
         )
+        
+        lr_before = scheduler.get_last_lr()[0]
+        scheduler.step(val_results["loss"])
+        lr_after = scheduler.get_last_lr()[0]
+        
+        if lr_before != lr_after:
+            logging.info(f"Learning rate changed from {lr_before} to {lr_after}")
 
         val_losses.append(val_results["loss"])
         val_times.append(val_results["duration"])
@@ -290,8 +311,9 @@ try:
 
         ax2 = ax1.twinx()
         color = "tab:blue"
-        ax2.set_ylabel("Subset Accuracy", color=color)
-        ax2.plot(train_metrics["val_subset_accuracy"], color=color, label="Validation")
+        ax2.set_ylabel("Mean Jaccard", color=color)
+        # ax2.plot(train_metrics["val_subset_accuracy"], color=color, label="Validation")
+        ax2.plot(train_metrics["val_mean_jaccard"], label="Mean Jaccard")
         ax2.tick_params(axis="y", labelcolor=color)
         # legend in upper right corner
         ax2.legend(loc="upper right")
@@ -308,7 +330,7 @@ try:
         # plot mean jaccard, mean accuracy, mean precision and mean recall
         fig, ax = plt.subplots()
         ax.plot(train_metrics["val_mean_jaccard"], label="Mean Jaccard")
-        ax.plot(train_metrics["val_mean_accuracy"], label="Mean Accuracy")
+        # ax.plot(train_metrics["val_mean_accuracy"], label="Mean Accuracy")
         ax.plot(train_metrics["val_mean_precision"], label="Mean Precision")
         ax.plot(train_metrics["val_mean_recall"], label="Mean Recall")
         ax.set_xlabel("Epoch")
@@ -333,7 +355,7 @@ try:
     )
 
     # load the best model of the training run
-    model = MultiLabelClassificationMobileNetV3Large(num_classes=NUM_CLASSES)
+    model = MultiLabelClassificationMobileNetV3Large(num_classes=NUM_CLASSES, image_input_size=MODEL_IMAGE_INPUT_SIZE)
     model.load_state_dict(
         torch.load(
             training_run_data_path / "best_model.pth",
