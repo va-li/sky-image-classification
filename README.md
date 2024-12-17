@@ -4,6 +4,8 @@ Topic: *Image Classification*
 
 Project Type: *Bring your own data*
 
+# Assignment 1 - Proposal
+
 ## Project idea and approach
 
 **Multi-label classification of image artifacts in hemispherical sky images.** The images come from a dataset of approximately 10,000 images collected from my all-sky camera prototype during my master's thesis. I am at the end of this thesis, which aims to provide the most accurate possible estimation of diffuse sky radiation per pixel from hemispherical sky images for solar energy applications. Unfortunately, image artifacts such as dirt on the optics, dew, and similar issues cause incorrect radiation estimates, but many of them can be corrected by cleaning the optics. Further, I need to distinguish clear-sky from clouded-sky images, as the clear-sky ones will be used for radiometric calibration of the camera. Because the camera is built from a Raspberry Pi 4, it is possible to use a neural network directly on the camera hardware. To allow on-demand maintenance of the camera capturing these images, I would like to work on classifying these artifacts directly on the device.
@@ -70,7 +72,7 @@ In the context of my multi-label classification problem, I calculate the Jaccard
 |                         | Mean Jaccard Score |
 |-------------------------|-------------------:|
 | Target                  |               0.75 |
-| **Achieved** (test set) |           **0.88** |
+| **Achieved** (test set) |           **0.85** |
 
 Despite trying data augmentation and higher resolution images than what MobileNetV3 supports by default, the best performing model on the validation set was the original MobileNetV3 model trained on 224x224 images without data augmentation. 
 
@@ -78,17 +80,17 @@ Further, I also look at the macro precision and recall, which are the average of
 
 |                         | Macro Precision | Macro Recall |
 |-------------------------|----------------:|-------------:|
-| **Achieved** (test set) |        **0.73** |     **0.87** |
+| **Achieved** (test set) |        **0.89** |     **0.57** |
 
 And in a bit more detail for each class in test set:
 
 | Class     | Macro Precision | Macro Recall | **# labels** |
 |-----------|----------------:|-------------:|-------------:|
-| clouds    |           0.971 |        0.989 |          470 |
-| rain      |           0.888 |        0.841 |          113 |
-| dew       |           0.986 |        0.719 |          192 |
-| clear sky |           0.878 |        0.720 |           50 |
-| soiling   |           0.625 |        0.370 |           54 |
+| clouds    |           0.927 |        0.998 |          470 |
+| rain      |           0.875 |        0.867 |          113 |
+| dew       |           0.992 |        0.646 |          192 |
+| clear sky |           0.929 |        0.260 |           50 |
+| soiling   |           0.093 |        0.714 |           54 |
 
 
 Time spent on each task:
@@ -106,6 +108,36 @@ Time spent on each task:
 
 **Total: 89 hours**
 
+---
+
+# Setup and Installation
+
+## Training
+
+Required software:
+
+- Python 3.11
+- Python 3.11 venv
+- NVIDIA CUDA Toolkit
+- Python packages: numpy, pandas, scikit-learn, scikit-image, tqdm, matplotlib, tabulate, torch, torchvision, torchaudio
+
+Either install them manually or run [./install_train_dependencies.sh](./install_train_dependencies.sh) to install the system requirements, create a virtual environment in the project directory, and install the Python packages all at once.
+
+There is a python requirement file in the repository, but despite being created after the installation of all dependencies with the install script, it does not work for me to install the python dependencies with `pip install -r requirements_train.txt`. I think this is because the right PyTorch version is not available on PyPi, but only on via the PyTorch index.
+
+The dataset is not included in the repository, but can be provided on request. The dataset should be placed in [./data/](./data/).
+
+To train the model, go into [./src/] and run [./train_model.py](./src/train_model.py).
+
+The training script will save all training data and the best model in a folder under `./data/training_runs/` with a timestamp as the folder name. The training script will also save the model with the best validation loss and the training history as a CSV file in the training run folder.
+
+## Webapp
+
+Required software:
+- Python 3.11
+- Python 3.11 venv
+
+Go into [./src/webapp/](./src/webapp/) and run [./install_webapp_dependencies.sh](./src/webapp/install_webapp_dependencies.sh) to install the system requirements, create a virtual environment in the project directory, and install the Python packages all at once.
 ---
 
 ## Update 2024-12-17
