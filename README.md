@@ -4,6 +4,25 @@ Topic: *Image Classification*
 
 Project Type: *Bring your own data*
 
+Table of Contents:
+
+- [Assignment 1 - Proposal](#assignment-1---proposal)
+  - [Project idea and approach](#project-idea-and-approach)
+  - [Dataset](#dataset)
+  - [Work-breakdown Structure (85-95 hours)](#work-breakdown-structure-85-95-hours)
+  - [References](#references)
+- [Assignment 2 - Hacking](#assignment-2---hacking)
+- [Setup and Installation](#setup-and-installation)
+  - [Training](#training)
+  - [Webapp](#webapp)
+- [Intermediate Updates](#intermediate-updates)
+  - [Update 2024-12-17](#update-2024-12-17)
+  - [Update 2024-11-21](#update-2024-11-21)
+  - [Update 2024-11-20](#update-2024-11-20)
+  - [Update 2024-10-29](#update-2024-10-29)
+
+---
+
 # Assignment 1 - Proposal
 
 ## Project idea and approach
@@ -76,7 +95,7 @@ In the context of my multi-label classification problem, I calculate the Jaccard
 
 Despite trying data augmentation and higher resolution images than what MobileNetV3 supports by default, the best performing model on the validation set was the original MobileNetV3 model trained on 224x224 images without data augmentation. 
 
-Further, I also look at the macro precision and recall, which are the average of the precision and recall for each class, to see if the model is "fair" in predicting all classes.
+Further, I also looked at the macro precision and recall, which are the average of the precision and recall for each class, to see if the model is "fair" in predicting all classes.
 
 |                         | Macro Precision | Macro Recall |
 |-------------------------|----------------:|-------------:|
@@ -84,13 +103,13 @@ Further, I also look at the macro precision and recall, which are the average of
 
 And in a bit more detail for each class in test set:
 
-| Class     | Macro Precision | Macro Recall | **# labels** |
-|-----------|----------------:|-------------:|-------------:|
-| clouds    |           0.927 |        0.998 |          470 |
-| rain      |           0.875 |        0.867 |          113 |
-| dew       |           0.992 |        0.646 |          192 |
-| clear sky |           0.929 |        0.260 |           50 |
-| soiling   |           0.093 |        0.714 |           54 |
+| Class     | Precision (one-vs-rest) | Recall (one-vs-rest) | **# labels** |
+|-----------|------------------------:|---------------------:|-------------:|
+| clouds    |                   0.927 |                0.998 |          470 |
+| rain      |                   0.875 |                0.867 |          113 |
+| dew       |                   0.992 |                0.646 |          192 |
+| clear sky |                   0.929 |                0.260 |           50 |
+| soiling   |                   0.093 |                0.714 |           54 |
 
 
 Time spent on each task:
@@ -149,6 +168,8 @@ To start the webapp, run [run.sh](./src/webapp/run_webapp.sh). The webapp will b
 ![Webapp Screenshot 1](dissemination/images/webapp_screenshot_2024-11-21_1.png)
 
 ---
+
+# Intermediate Updates
 
 ## Update 2024-12-17
 
