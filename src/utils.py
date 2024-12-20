@@ -4,12 +4,57 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from sklearn.metrics import accuracy_score, multilabel_confusion_matrix, jaccard_score
+from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 import time
-from typing import Dict, Any
+from typing import Dict, Any, List, Tuple
 
 from model import MultiLabelClassificationMobileNetV3Large
+from dataset import SkyImageMultiLabelDataset
 
+def shuffle_sky_images_based_on_date(
+    dataset: SkyImageMultiLabelDataset,
+    val_size: float,
+    test_size: float,
+    seed: int
+) -> Tuple[List[int], List[int], List[int]]:
+    
+    image_dates = dataset.image_metadata_df["date"].unique()
+    
+    train_dates, val_test_dates = train_test_split(
+        image_dates,
+        test_size=(val_size + test_size),
+        random_state=seed,
+        shuffle=True,
+    )
+    
+    assert len(set(train_dates).intersection(val_test_dates)) == 0, f"Training and validation+test dates overlap: {set(train_dates).intersection(val_test_dates)}"
+    
+    # then split the training+validation set into training and validation sets
+    test_dates, val_dates = train_test_split(
+        val_test_dates,
+        test_size=(test_size / (val_size + test_size)),
+        random_state=seed,
+        shuffle=True
+    )
+    
+    assert len(set(train_dates).intersection(val_dates)) == 0, f"Training and validation dates overlap: {set(train_dates).intersection(val_dates)}"
+    assert len(set(train_dates).intersection(test_dates)) == 0, f"Training and test dates overlap: {set(train_dates).intersection(test_dates)}"
+    
+    # index of dataset.image_metadata_df is the filename of the image
+    # but we need to get the integer location indices for the train, validation and test dates
+    # dataset.image_metadata_df["date"].isin(train_dates) gets a boolean mask of the same length as the DataFrame
+    # but we need the integer indices of the True values
+    # so we use np.where to get the integer indices of the True values
+    train_indices = np.where(dataset.image_metadata_df["date"].isin(train_dates))[0].tolist()
+    val_indices = np.where(dataset.image_metadata_df["date"].isin(val_dates))[0].tolist()
+    test_indices = np.where(dataset.image_metadata_df["date"].isin(test_dates))[0].tolist()
+    
+    assert len(train_indices) + len(val_indices) + len(test_indices) == len(dataset), f"Indices don't add up: train {len(train_indices)} + val {len(val_indices)} + test {len(test_indices)} != dataset {len(dataset)}"
+    assert len(set(train_indices).intersection(val_indices)) == 0, f"Training and validation indices overlap: {set(train_indices).intersection(val_indices)}"
+    assert len(set(train_indices).intersection(test_indices)) == 0, f"Training and test indices overlap: {set(train_indices).intersection(test_indices)}"
+    
+    return train_indices, val_indices, test_indices
 
 def train_one_epoch(
     model: MultiLabelClassificationMobileNetV3Large,
