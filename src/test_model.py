@@ -12,12 +12,19 @@ from dataset import SkyImageMultiLabelDataset
 from model import MultiLabelClassificationMobileNetV3Large
 from utils import evaluate_model
 
+training_runs_path = Path("../data/training-runs/").resolve()
+available_training_runs = sorted(
+    [p.name for p in training_runs_path.iterdir() if p.is_dir()]
+)
+print("Available training runs:")
+print("\n".join(available_training_runs))
+
+selected_training_run = input(
+    f"Write a training run name or press Enter to use the latest ({available_training_runs[-1]}): "
+)
+
 training_run_data_path = Path(
-    "../data/training-runs/"
-    + input(
-        "Enter the training run directory name (e.g. 'mobilenetv3_20241216-235028+0100'): "
-    )
-    + "/"
+    "../data/training-runs/" + (selected_training_run or available_training_runs[-1])
 ).resolve()
 
 logging.basicConfig(

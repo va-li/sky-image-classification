@@ -1,4 +1,6 @@
 import pandas as pd
+import numpy as np
+import random
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -11,9 +13,23 @@ import json
 import logging
 import matplotlib.pyplot as plt
 
+
+# hyperparameters dictionary
+# all hyperparameters are stored in a dictionary and saved to a json file for reproducibility
+hyperparameters = {}
+
+# a fixed seed for reproducibility (randomly chosen)
+SEED = 18759
+torch.manual_seed(SEED)
+torch.cuda.manual_seed(SEED)
+torch.backends.cudnn.deterministic = True
+np.random.seed(SEED)
+random.seed(SEED)
+hyperparameters["seed"] = SEED
+
 from dataset import SkyImageMultiLabelDataset
 from model import MultiLabelClassificationMobileNetV3Large
-from utils import train_one_epoch, evaluate_model
+from utils import train_one_epoch, evaluate_model, shuffle_sky_images_based_on_date
 
 # each training run gets its own directory to store the model, metrics and logs
 training_run_timestamp = time.strftime("%Y%m%d-%H%M%S%z")
@@ -39,6 +55,7 @@ try:
     ###########################################################################
     
     MODEL_IMAGE_INPUT_SIZE = 224
+    hyperparameters["model_image_input_size"] = MODEL_IMAGE_INPUT_SIZE
 
     # Transformations for training, validation and test sets
     transform_train = v2.Compose(
@@ -48,9 +65,9 @@ try:
             # v2.RandomRotation(
             #     (0, 180)
             # ),  # randomly rotate the image between 0 and 180 degrees
-            # v2.ColorJitter(
-            #     brightness=0.2, contrast=0.2, saturation=0.2, hue=0.2
-            # ),  # randomly change the brightness, contrast, saturation and hue
+            v2.ColorJitter(
+                brightness=0, contrast=0, saturation=0.1, hue=0.1
+            ),  # randomly change the brightness, contrast, saturation and hue
             v2.Resize((MODEL_IMAGE_INPUT_SIZE, MODEL_IMAGE_INPUT_SIZE), interpolation=v2.InterpolationMode.BICUBIC),
             v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
@@ -64,49 +81,24 @@ try:
         ]
     )
 
-    # hyperparameters dictionary
-    # all hyperparameters are stored in a dictionary and saved to a json file for reproducibility
-    hyperparameters = {}
-    
-    hyperparameters["model_image_input_size"] = MODEL_IMAGE_INPUT_SIZE
-
     # load the dataset
     dataset_path = Path("../data/").resolve()
     hyperparameters["dataset_path"] = str(dataset_path)
     dataset = SkyImageMultiLabelDataset(dataset_path)
     train_dataset = SkyImageMultiLabelDataset(dataset_path, transform=transform_train)
-    hyperparameters["transform_train"] = str(transform_train)
+    hyperparameters["transform_train"] = [str(t).replace('\n', ' ') for t in transform_train.transforms]
     val_dataset = SkyImageMultiLabelDataset(dataset_path, transform=transform_val_test)
     test_dataset = SkyImageMultiLabelDataset(dataset_path, transform=transform_val_test)
-    hyperparameters["transform_val_test"] = str(transform_val_test)
-
-    # a fixed seed for reproducibility (randomly chosen)
-    SEED = 18759
-    torch.manual_seed(SEED)
-    hyperparameters["seed"] = SEED
+    hyperparameters["transform_val_test"] = [str(t).replace('\n', ' ') for t in transform_val_test.transforms]
 
     # split the dataset into training, validation and test sets
     VAL_SIZE_RATIO = 0.1
-    VAL_SIZE = int(VAL_SIZE_RATIO * len(dataset))
     hyperparameters["val_size_ratio"] = VAL_SIZE_RATIO
     TEST_SIZE_RATIO = 0.1
-    TEST_SIZE = int(TEST_SIZE_RATIO * len(dataset))
     hyperparameters["test_size_ratio"] = TEST_SIZE_RATIO
-    TRAIN_SIZE_RATIO = 1 - VAL_SIZE_RATIO - TEST_SIZE_RATIO
-    TRAIN_SIZE = len(dataset) - VAL_SIZE - TEST_SIZE
-    hyperparameters["train_size_ratio"] = TRAIN_SIZE_RATIO
-    RANDOM_SPLIT = False
-    hyperparameters["random_split"] = RANDOM_SPLIT
-    # first split the dataset into training+validation and test sets
-    train_indices, test_indices = train_test_split(
-        range(len(dataset)),
-        test_size=TEST_SIZE,
-        random_state=SEED,
-        shuffle=RANDOM_SPLIT,
-    )
-    # then split the training+validation set into training and validation sets
-    train_indices, val_indices = train_test_split(
-        train_indices, test_size=VAL_SIZE, random_state=SEED, shuffle=RANDOM_SPLIT
+    
+    train_indices, val_indices, test_indices = shuffle_sky_images_based_on_date(
+        dataset, VAL_SIZE_RATIO, TEST_SIZE_RATIO, SEED
     )
 
     train_dataset = torch.utils.data.Subset(train_dataset, train_indices)
@@ -128,7 +120,7 @@ try:
     SUFFLE_TRAIN = True
     hyperparameters["shuffle_train"] = SUFFLE_TRAIN
     train_loader = DataLoader(
-        train_dataset, batch_size=BATCH_SIZE, shuffle=SUFFLE_TRAIN
+        train_dataset, batch_size=BATCH_SIZE, shuffle=SUFFLE_TRAIN, num_workers=0
     )
     SUFFLE_VAL = False
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=SUFFLE_VAL)
@@ -138,13 +130,13 @@ try:
     hyperparameters["shuffle_test"] = SHUFFLE_TEST
 
     logging.info(
-        f"Train set:\n{dataset.image_labels_df.iloc[train_dataset.indices].sum()}"
+        f"Train set:\nimages: {len(train_dataset)}\nlabels:\n{dataset.image_labels_df.iloc[train_dataset.indices].sum()}"
     )
     logging.info(
-        f"Validation set:\n{dataset.image_labels_df.iloc[val_dataset.indices].sum()}"
+        f"Validation set:\nimages: {len(val_dataset)}\nlabels:\n{dataset.image_labels_df.iloc[val_dataset.indices].sum()}"
     )
     logging.info(
-        f"Test set:\n{dataset.image_labels_df.iloc[test_dataset.indices].sum()}"
+        f"Test set:\nimages: {len(test_dataset)}\nlabels:\n{dataset.image_labels_df.iloc[test_dataset.indices].sum()}"
     )
 
     NUM_CLASSES = len(dataset.label_names)
@@ -164,24 +156,25 @@ try:
 
     # Define the loss function and optimizer
     # BCELoss is used for multi-label classification
-    # bce_weights = 1 / dataset.image_labels_df.iloc[train_dataset.indices].mean().to_dict()
-    # hyperparameters["loss_function_weights"] = bce_weights
-    bce_weights = {label: 1 for label in dataset.label_names}
+    bce_weights = 1 / dataset.image_labels_df.iloc[train_dataset.indices].mean()
+    bce_weights = bce_weights.to_dict()
     hyperparameters["loss_function_weights"] = bce_weights
+    # bce_weights = {label: 1 for label in dataset.label_names}
+    # hyperparameters["loss_function_weights"] = bce_weights
     criterion = nn.BCELoss(
         weight=torch.tensor(list(bce_weights.values())).float().to(device)
     )
-    LEARNING_RATE = 0.001
+    LEARNING_RATE = 0.0001
     optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE)
     hyperparameters["optimizer"] = "AdamW"
     hyperparameters["learning_rate"] = LEARNING_RATE
     
-    # add plateu lr scheduler
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=10)
-    hyperparameters["scheduler"] = "ReduceLROnPlateau"
+    # # add plateu lr scheduler
+    # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=10)
+    # hyperparameters["scheduler"] = "ReduceLROnPlateau"
 
     # Training loop
-    N_EPOCHS = 60
+    N_EPOCHS = 120
     hyperparameters["n_epochs"] = N_EPOCHS
     FREEZE_BACKBONE = False
     hyperparameters["freeze_backbone"] = FREEZE_BACKBONE
@@ -212,7 +205,7 @@ try:
             # freeze the backbone layers for the first few epochs
             if epoch == 0:
                 model.freeze_pretrained_layers()
-            if epoch == 20:
+            if epoch == (N_EPOCHS // 3):
                 model.unfreeze_pretrained_layers()
 
         train_results = train_one_epoch(
@@ -226,12 +219,11 @@ try:
             model, criterion, val_loader, device, PREDICTION_THRESHOLD
         )
         
-        lr_before = scheduler.get_last_lr()[0]
-        scheduler.step(val_results["loss"])
-        lr_after = scheduler.get_last_lr()[0]
-        
-        if lr_before != lr_after:
-            logging.info(f"Learning rate changed from {lr_before} to {lr_after}")
+        # lr_before = scheduler.get_last_lr()[0]
+        # scheduler.step(val_results["loss"])
+        # lr_after = scheduler.get_last_lr()[0]
+        # if lr_before != lr_after:
+        #     logging.info(f"Learning rate changed from {lr_before} to {lr_after}")
 
         val_losses.append(val_results["loss"])
         val_times.append(val_results["duration"])
@@ -305,6 +297,16 @@ try:
             linestyle="dashed",
             label="Validation",
         )
+        # add vertical line at the epoch where the best model was saved (+1 because epoch is 0-based)
+        ax1.axvline(x=(best_jaccard_error_epoch + 1), color="gray", linestyle="--")
+        # text label for the best model epoch
+        ax1.text(
+            best_jaccard_error_epoch + 1,
+            1,
+            f"Best Model (Epoch {best_jaccard_error_epoch+1})",
+            rotation=90,
+            verticalalignment="center",
+        )
         ax1.tick_params(axis="y", labelcolor=color)
         # legend in upper left corner
         ax1.legend(loc="upper left")
@@ -329,10 +331,20 @@ try:
 
         # plot mean jaccard, mean accuracy, mean precision and mean recall
         fig, ax = plt.subplots()
+        ax.grid()
         ax.plot(train_metrics["val_mean_jaccard"], label="Mean Jaccard")
         # ax.plot(train_metrics["val_mean_accuracy"], label="Mean Accuracy")
         ax.plot(train_metrics["val_mean_precision"], label="Mean Precision")
         ax.plot(train_metrics["val_mean_recall"], label="Mean Recall")
+        ax.axvline(x=(best_jaccard_error_epoch + 1), color="gray", linestyle="--")
+        # text label for the best model epoch
+        ax.text(
+            best_jaccard_error_epoch + 1,
+            1,
+            f"Best Model (Epoch {best_jaccard_error_epoch+1})",
+            rotation=90,
+            verticalalignment="center",
+        )
         ax.set_xlabel("Epoch")
         ax.set_ylabel("Score")
         ax.legend()
@@ -344,6 +356,17 @@ try:
         plt.close("all")
 
     logging.info("Training complete")
+        
+    # log the best model epoch
+    logging.info(f"Best model saved at epoch {best_jaccard_error_epoch+1}")
+    # log the best jaccard error and other metrics
+    logging.info(f"Best model metrics (validation set):")
+    logging.info(
+        f"Jaccard: {best_jaccard_error:.4f}, Subset Accuracy: {val_subset_accuracies[best_jaccard_error_epoch]:.4f}"
+    )
+    logging.info(
+        f"Mean Accuracy: {val_mean_accuracies[best_jaccard_error_epoch]:.4f}, Mean Precision: {val_mean_precisions[best_jaccard_error_epoch]:.4f}, Mean Recall: {val_mean_recalls[best_jaccard_error_epoch]:.4f}"
+    )
 
     ###########################################################################
     #                        Evaluation on test set                           #

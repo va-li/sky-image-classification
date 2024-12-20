@@ -34,11 +34,8 @@ class MultiLabelClassificationMobileNetV3Large(nn.Module):
             # inside the "features" module, the first element is the first convolutional layer
             # we replace this first convolutional layer with our custom downsample layer
             self.first_conv_layer = nn.Sequential(
-                nn.Conv2d(3, 8, kernel_size=3, stride=2, padding=1, bias=False),
-                nn.BatchNorm2d(8),
-                nn.Hardswish(),
-                nn.Conv2d(8, 16, kernel_size=3, stride=2, padding=1, bias=False),
-                nn.BatchNorm2d(16),
+                nn.Conv2d(3, 3, kernel_size=3, stride=2, padding=1, bias=False),
+                nn.BatchNorm2d(3),
                 nn.Hardswish(),
             )
             
@@ -53,14 +50,15 @@ class MultiLabelClassificationMobileNetV3Large(nn.Module):
                     init.constant_(m.bias, 0)
                     
         elif image_input_size == 224:
-            # otherwise, use the default first convolutional layer
+            # otherwise, use the existing first convolutional layer
             self.first_conv_layer = feature_extractor[0]
+            feature_extractor = feature_extractor[1:]
             
         else:
             raise ValueError(f"Only image_input_size of 224 or 448 is supported, but got {image_input_size}")
         
         # build up the correct structure of mobile net v3 large again      
-        self.feature_extractor = nn.Sequential(self.first_conv_layer, feature_extractor[1:])
+        self.feature_extractor = nn.Sequential(self.first_conv_layer, feature_extractor)
         self.avg_pool = avg_pool
         
         # then we add a custom classification head
