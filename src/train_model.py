@@ -65,9 +65,9 @@ try:
             # v2.RandomRotation(
             #     (0, 180)
             # ),  # randomly rotate the image between 0 and 180 degrees
-            v2.ColorJitter(
-                brightness=0, contrast=0, saturation=0.1, hue=0.1
-            ),  # randomly change the brightness, contrast, saturation and hue
+            # v2.ColorJitter(
+            #     brightness=0, contrast=0, saturation=0.1, hue=0.1
+            # ),  # randomly change the brightness, contrast, saturation and hue
             v2.Resize((MODEL_IMAGE_INPUT_SIZE, MODEL_IMAGE_INPUT_SIZE), interpolation=v2.InterpolationMode.BICUBIC),
             v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
