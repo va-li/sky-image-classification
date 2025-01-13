@@ -2,25 +2,15 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Multi-Label Image Classifier</title>
+    <title>ADL2024W Sky Image Classification</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
     <style>
-        @starting-style {
-            .prediction-bar {
-                height: 20px;
-                margin: 10px 0;
-                transition: width 0.5s ease;
-                width: 0%;
-                /* round the corners */
-                border-radius: 10px;
-            }
-        }
         #dropzone {
             border: 2px dashed #ccc;
             border-radius: 20px;
             padding: 20px;
             text-align: center;
-            transition: background-color 0.3s;
+            transition: background-color 0.2s;
             /* restrict the width of the dropzone */
             max-width: 600px;
             /* center the dropzone */
@@ -42,13 +32,30 @@
             /* center */
             /* margin: 0 auto; */
         }
+        .prediction-bar-outline {
+            margin-bottom: 10px;
+            border: 1px solid #ccc;
+            transition: border-color 0.5s;
+            border-radius: 20px;
+            /* use entire width */
+            width: 100%;
+        }
         .prediction-bar {
             height: 20px;
-            margin: 10px 0;
             transition: width 0.5s ease;
-            
             /* round the corners */
             border-radius: 10px;
+            width: 20px;
+            background-color: #453D24;
+        }
+        .correct {
+            border: 5px solid #04C42A;
+        }
+        .incorrect {
+            border: 5px solid #C40420;
+        }
+        .no-ground-truth {
+            border: 5px solid #808080;
         }
         /* center the header */
         article header {
@@ -58,6 +65,21 @@
         #predictButton {
             display: block;
             margin: 20px auto;
+        }
+        #toggleGroundTruth {
+            display: block;
+            margin: 20px auto;
+        }
+        .label-value {
+            display: flex;
+            justify-content: left;
+        }
+        .label {
+            /* margin-right: 1em; */
+            flex: 1;
+        }
+        #inference-time {
+            margin-top: 20px;
         }
     </style>
 </head>
@@ -69,17 +91,53 @@
             </header>
             
             <div class="grid">
-                <div id="dropzone">
-                    <p>Drag and drop a sky image here or click to select</p>
-                    <input type="file" id="fileInput" accept="image/*" style="display:none;">
-                    <img id="previewImage" style="max-width: 100%; display: none;">
+                <div>
+                    <div id="dropzone">
+                        <p>Drag and drop a sky image here or click to select</p>
+                        <input type="file" id="fileInput" accept="image/*" style="display:none;">
+                        <img id="previewImage" style="max-width: 100%; display: none;">
+                    </div>
+                    <button id="predictButton" disabled>Classify Image</button>
                 </div>
-                <div id="predictions"></div>
+                <div>
+                    <div id="predictions">
+                        <div id="prediction_clouds">
+                            <span class="label-value"><div class="label">Clouds</div><div>%</div></span>
+                            <div class="prediction-bar-outline no-ground-truth">
+                                <div class="prediction-bar"></div>
+                            </div>
+                        </div>
+                        <div id="prediction_rain">
+                            <span class="label-value"><div class="label">Rain</div><div>%</div></span>
+                            <div class="prediction-bar-outline no-ground-truth">
+                                <div class="prediction-bar"></div>
+                            </div>
+                        </div>
+                        <div id="prediction_dew">
+                            <span class="label-value"><div class="label">Dew</div><div>%</div></span>
+                            <div class="prediction-bar-outline no-ground-truth">
+                                <div class="prediction-bar"></div>
+                            </div>
+                        </div>
+                        <div id="prediction_clear_sky">
+                            <span class="label-value"><div class="label">Clear sky</div><div>%</div></span>
+                            <div class="prediction-bar-outline no-ground-truth">
+                                <div class="prediction-bar"></div>
+                            </div>
+                        </div>
+                        <div id="prediction_soiling">
+                            <span class="label-value"><div class="label">Soiling</div><div>%</div></span>
+                            <div class="prediction-bar-outline no-ground-truth">
+                                <div class="prediction-bar"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="inference-time"></div>
+                </div>
             </div>
             
-            <button id="predictButton" disabled>Classify Image</button>
             <footer>
-                <div id="inference-time"></div>
+                <a href="/public/example-sky-images.zip" download>Download Example Sky Images (2.7 MiB)</a>
             </footer>
         </article>
     </main>
@@ -144,8 +202,14 @@
                     previewImage.src = e.target.result;
                     previewImage.style.display = 'block';
                     predictButton.disabled = false;
-                    predictions.innerHTML = '';
                     inferenceTime.innerHTML = '';
+                    for (let predictionElement of predictions.children) {
+                        predictionElement.children[0].children[1].innerHTML = '%';
+                        predictionElement.children[1].classList.remove('no-ground-truth', 'correct', 'incorrect');
+                        predictionElement.children[1].classList.add('no-ground-truth');
+                        predictionElement.children[1].children[0].style.width = '20px';
+                        predictionElement.children[1].children[0].style.backgroundColor = '#453D24';
+                    };
                 };
                 reader.readAsDataURL(file);
             }
@@ -170,7 +234,7 @@
                 });
 
                 const result = await response.json();
-                displayPredictions(result.predictions);
+                displayPredictions(result.labels);
                 displayInferenceTime(result.inference_time_ms);
             } catch (error) {
                 console.error('Error:', error);
@@ -180,18 +244,25 @@
         });
 
         function displayPredictions(predictionData) {
-            // sort predictions by score (list of objects)
-            predictionData.sort((a, b) => b.score - a.score);
 
-            predictions.innerHTML = predictionData.map(pred => `
-                <div>
-                    <p style="font-weight: ${pred.score > 0.5 ? 'bold' : 'normal'}">${pred.label}: ${(pred.score * 100).toFixed(1)}%</p>
-                    <div class="prediction-bar" 
-                         style="width: max(20px, ${pred.score * 100}%); 
-                                background-color: ${pred.score > 0.5 ? 'green' : 'gray'}">
-                    </div>
-                </div>
-            `).join('');
+            predictionData.forEach(class_element => {
+                // get the prediction element
+                let predictionElement = document.getElementById(`prediction_${class_element.label.replace(' ', '_').toLowerCase()}`);
+                // check if ground_truth key exists
+                let ground_truth_available = class_element.ground_truth !== undefined;
+                let correct_prediciton = false;
+                if (ground_truth_available) {
+                        correct_prediciton = (class_element.ground_truth === 1 && class_element.prediction_score >= 0.5)
+                            || (class_element.ground_truth === 0 && class_element.prediction_score < 0.5);
+                    }
+
+                // update the prediction element, only set styles and classes, do not update the innerHTML
+                predictionElement.children[0].children[1].innerHTML = `${(class_element.prediction_score * 100).toFixed(1)}%`;
+                predictionElement.children[1].classList.remove('no-ground-truth', 'correct', 'incorrect');
+                predictionElement.children[1].classList.add(ground_truth_available ? (correct_prediciton ? 'correct' : 'incorrect') : 'no-ground-truth');
+                predictionElement.children[1].children[0].style.width = `max(20px, ${(class_element.prediction_score * 100).toFixed(1)}%)`;
+                predictionElement.children[1].children[0].style.backgroundColor = class_element.prediction_score >= 0.5 ? '#C49504' : '#453D24';
+            });
         }
 
         function displayInferenceTime(time_ms) {

@@ -12,6 +12,8 @@ from dataset import SkyImageMultiLabelDataset
 from model import MultiLabelClassificationMobileNetV3Large
 from utils import evaluate_model
 
+torch.backends.cudnn.deterministic = True
+
 training_runs_path = Path("../data/training-runs/").resolve()
 available_training_runs = sorted(
     [p.name for p in training_runs_path.iterdir() if p.is_dir()]
