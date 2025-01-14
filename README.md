@@ -16,11 +16,11 @@ Table of Contents:
   - [Training](#training)
   - [Webapp](#webapp)
 - [Intermediate Updates](#intermediate-updates)
+  - [Update 2025-01-14](#update-2025-01-14)
   - [Update 2024-12-17](#update-2024-12-17)
   - [Update 2024-11-21](#update-2024-11-21)
   - [Update 2024-11-20](#update-2024-11-20)
   - [Update 2024-10-29](#update-2024-10-29)
-
 ---
 
 # Assignment 1 - Proposal
@@ -173,9 +173,30 @@ To start the webapp, run [run.sh](./src/webapp/run_webapp.sh). The webapp will b
 
 ## Update 2025-01-14
 
+### Dataset
+
+I decided a time based split of the training data was not a good choice for my dataset either, because the distribution of the labels changes over time. Instead, I grouped the images by day, because the weather and the artifacts in the images are likely to be similar for images taken on the same day. Then I split the day-groups into training, validation and test sets and assigned the images accordingly. This way, there should be less data leakage between train, validation and test set and the evaluation of the model should also be more balanced over the different weather conditions and artifacts.
+
+The dataset is now split as follows:
+
+| Set         | # images |
+|:------------|---------:|
+| Train       |     4103 |
+| Validation  |      584 |
+| Test        |      514 |
+
+| Class     | Train | Validation | Test |
+|-----------|------:|-----------:|-----:|
+| Clouds    |  3261 |        498 |  413 |
+| Rain      |   381 |         86 |   70 |
+| Dew       |  1161 |         86 |  190 |
+| Clear sky |   842 |         86 |  101 |
+| Soiling   |  1695 |        247 |  186 |
+
 ### Models
 
-After fixing the last bug that cause the training to be non-deterministic, I retrained all model variants to estimate the best hyperparameters, based on the Mean Jacard Score on the validation set. To my surprise, the best performing model was the fine tuned MobileNetV3 model trained on 224x224 images without data augmentation. What is surprising though, is that it performs far better on the validation set (Mean Jaccard Score of 0.90) than on the test set (Mean Jaccard Score of 0.72), despite not being specifically optimized for the validation set. This could a sign of overfitting.
+
+After fixing the last bug that caused the training to be non-deterministic, I retrained all model variants to estimate the best hyperparameters, based on the Mean Jacard Score on the validation set. To my surprise, the best performing model was the fine tuned MobileNetV3 model trained on 224x224 images without data augmentation. What is surprising though, is that it performs far better on the validation set (Mean Jaccard Score of 0.90) than on the test set (Mean Jaccard Score of 0.72), despite not being specifically optimized for the validation set. This could a sign of overfitting.
 
 | ColorJitter                                                                                        | HorizontalFlip          | Rotation                                                                                         |   Image Size |   Learning Rate |   Epochs | Freezing pre-trained layers   |   Val Mean Jaccard | 
 |:----------------------------------------------------------------------------------------------------|:--------------------------------|:--------------------------------------------------------------------------------------------------------|-------------------:|----------------:|-----------:|:---------------------------|------------------------:|
