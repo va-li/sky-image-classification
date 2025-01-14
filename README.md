@@ -103,13 +103,13 @@ Further, I also looked at the macro precision and recall, which are the average 
 
 And in a bit more detail for each class in test set:
 
-| Class     | Precision (one-vs-rest) | Recall (one-vs-rest) | **# labels** |
-|-----------|------------------------:|---------------------:|-------------:|
-| clouds    |                   0.927 |                0.998 |          470 |
-| rain      |                   0.875 |                0.867 |          113 |
-| dew       |                   0.992 |                0.646 |          192 |
-| clear sky |                   0.929 |                0.260 |           50 |
-| soiling   |                   0.093 |                0.714 |           54 |
+| Class     | Precision (one-vs-rest) | Recall (one-vs-rest) | # labels |
+|-----------|------------------------:|---------------------:|---------:|
+| clouds    |                   0.927 |                0.998 |      470 |
+| rain      |                   0.875 |                0.867 |      113 |
+| dew       |                   0.992 |                0.646 |      192 |
+| clear sky |                   0.929 |                0.260 |       50 |
+| soiling   |                   0.093 |                0.714 |       54 |
 
 
 Time spent on each task:
@@ -170,6 +170,82 @@ To start the webapp, run [run.sh](./src/webapp/run_webapp.sh). The webapp will b
 ---
 
 # Intermediate Updates
+
+## Update 2025-01-14
+
+### Models
+
+After fixing the last bug that cause the training to be non-deterministic, I retrained all model variants to estimate the best hyperparameters, based on the Mean Jacard Score on the validation set. To my surprise, the best performing model was the fine tuned MobileNetV3 model trained on 224x224 images without data augmentation. What is surprising though, is that it performs far better on the validation set (Mean Jaccard Score of 0.90) than on the test set (Mean Jaccard Score of 0.72), despite not being specifically optimized for the validation set. This could a sign of overfitting.
+
+| ColorJitter                                                                                        | HorizontalFlip          | Rotation                                                                                         |   Image Size |   Learning Rate |   Epochs | Freezing pre-trained layers   |   Val Mean Jaccard | 
+|:----------------------------------------------------------------------------------------------------|:--------------------------------|:--------------------------------------------------------------------------------------------------------|-------------------:|----------------:|-----------:|:---------------------------|------------------------:|
+|                                                                                                   |                               |                                                                                                       |                224 |              0.001 |         60 | False                      |                    **0.89** |                0.87 |                  0.87 |               0.87 |
+| ColorJitter(brightness=(0.9, 1.1), contrast=(0.9, 1.1), saturation=(0.9, 1.1), hue=(-0.1, 0.1)) |                               |                                                                                                       |                224 |              0.0001|        120 | False                      |                    0.89 |
+| ColorJitter(saturation=(0.9, 1.1), hue=(-0.1, 0.1))                                             |                               |                                                                                                       |                224 |              0.0001|        120 | False                      |                    0.88 |
+|                                                                                                   |                               |                                                                                                       |                224 |              0.0001|        120 | False                      |                    0.88 |
+|                                                                                                   | RandomHorizontalFlip(p=0.5) | RandomRotation(degrees=0.0, 180.0, interpolation=InterpolationMode.NEAREST, expand=False, fill=0) |                224 |              0.001 |         60 | False                      |                    0.88 |
+| ColorJitter(brightness=(0.8, 1.2), contrast=(0.8, 1.2), saturation=(0.8, 1.2), hue=(-0.2, 0.2)) |                               |                                                                                                       |                224 |              0.0001|        120 | False                      |                    0.88 |
+|                                                                                                   |                               |                                                                                                       |                224 |              0.0001|         60 | False                      |                    0.87 |
+|                                                                                                   | RandomHorizontalFlip(p=0.5) | RandomRotation(degrees=0.0, 180.0, interpolation=InterpolationMode.NEAREST, expand=False, fill=0) |                224 |              0.0001|        120 | False                      |                    0.87 |
+|                                                                                                   |                               |                                                                                                       |                448 |              0.0001|        120 | True                       |                    0.86 |
+|                                                                                                   |                               |                                                                                                       |                448 |              0.0001|        120 | False                      |                    0.85 |
+|                                                                                                   |                               |                                                                                                       |                448 |              0.0001|        120 | False                      |                    0.82 |
+
+On the test set, the best model performs as follows:
+
+| Test Mean Jaccard | Test Macro Precision | Test Macro Recall |
+|------------------:|---------------------:|------------------:|
+|             0.865 |                0.872 |             0.866 |
+
+In a bit more detail, for each class in test set:
+
+| Class     | Test Precision (one-vs-rest) | Test Recall (one-vs-rest) | # labels |
+|-----------|-----------------------------:|--------------------------:|---------:|
+| Clouds    |                        0.984 |                     0.920 |      413 |
+| Rain      |                        0.722 |                     0.743 |       70 |
+| Dew       |                        1.000 |                     0.942 |      190 |
+| Clear sky |                        0.742 |                     0.941 |      101 |
+| Soiling   |                        0.912 |                     0.785 |      186 |
+
+The Mean Jaccard Score for images in the test set with the same label combination:
+
+| Label combination     | Test Mean Jaccard | # images |
+|:----------------------|------------------:|---------:|
+| clear sky             |             1.000 |       77 |
+| clouds, rain          |             1.000 |        2 |
+| clouds, rain, dew     |             0.913 |       50 |
+| clouds, rain, soiling |             0.889 |        9 |
+| clouds, soiling       |             0.884 |       96 |
+| clouds, dew           |             0.873 |       51 |
+| clouds, dew, soiling  |             0.870 |       73 |
+| clouds                |             0.792 |      132 |
+| dew, clear sky        |             0.762 |        7 |
+| rain, dew, clear sky  |             0.580 |        9 |
+| clear sky, soiling    |             0.500 |        8 |
+
+In the following are example predictions on the test set images.
+
+When the model performs well (all labels are predicted correctly):
+
+![Good predictions on test set](dissemination/images/best_model_prediction_examples_good.png)
+
+When the model performs mediocre (some labels are predicted correctly):
+
+![Mediocre predictions on test set](dissemination/images/best_model_prediction_examples_oneoff.png)
+
+When the model performs poorly (no labels are predicted correctly):
+
+![Poor predictions on test set](dissemination/images/best_model_prediction_examples_bad.png)
+
+Additional time spent on each task (including the time spent on the tasks in the previous updates):
+
+- Designing, Building and Training the Network:
+    - Fixing bugs and training the model and experimenting with hyperparameters: **8 hours**
+    - Analyzing the best model and writing the update: **6 hours**
+- Building the Application:
+    - Improving the web interface and deploying the app to a server: **3 hours**
+
+**Total: 106 hours**
 
 ## Update 2024-12-17
 
