@@ -74,6 +74,7 @@ for train_run_dir in tqdm(train_run_data_path.glob("mobilenetv3_20241220*")):
     learning_rate = hyperparameters.get("learning_rate", None)
     n_epochs = hyperparameters.get("n_epochs", None)
     freeze_pretrained_layers = hyperparameters.get("freeze_backbone", False)
+    loss_function_weights = hyperparameters.get("loss_function_weights", None)
     batch_size = hyperparameters.get("batch_size", None)
     train_set_len = len(hyperparameters["dataset_indices"]["train"])
     val_set_len = len(hyperparameters["dataset_indices"]["val"])
@@ -106,6 +107,7 @@ for train_run_dir in tqdm(train_run_data_path.glob("mobilenetv3_20241220*")):
             "learning_rate": learning_rate,
             "n_epochs": n_epochs,
             "freeze_pretrained_layers": freeze_pretrained_layers,
+            "loss_function_weights": loss_function_weights,
             "batch_size": batch_size,
             "train_set_len": train_set_len,
             "val_set_len": val_set_len,
@@ -135,5 +137,9 @@ results_df
 # %%
 print("Best model:")
 print(best_model)
+
+# %%
+results_df[["train_run_id", "color_jitter", "random_horizontal_flip", "random_rotation", "image_input_size", "random_split", "learning_rate", "n_epochs", "freeze_pretrained_layers", "loss_function_weights", "batch_size",
+            "best_val_loss", "best_val_mean_jaccard", "best_val_mean_precision", "best_val_mean_recall", "test_mean_jaccard", "test_mean_precision", "test_mean_recall", "rank"]]
 
 # %%
