@@ -203,6 +203,7 @@ def evaluate_model(
     class_accuracies = []
     class_recalls = []
     class_precisions = []
+    class_f1_scores = []
     for conf in confusion_matrices:
         # calculate the true positives, true negatives, false positives and false negatives
         tp = conf[1, 1]
@@ -216,10 +217,13 @@ def evaluate_model(
         class_recalls.append(recall)
         precision = tp / (tp + fp)
         class_precisions.append(precision)
+        f1_score = 2 * (precision * recall) / (precision + recall)
+        class_f1_scores.append(f1_score)
 
     mean_precision = np.nanmean(class_precisions)
     mean_recall = np.nanmean(class_recalls)
     mean_accuracy = np.nanmean(class_accuracies)
+    mean_f1_score = np.nanmean(class_f1_scores)
 
     return {
         "loss": loss,
@@ -229,10 +233,12 @@ def evaluate_model(
         "mean_precision": mean_precision,
         "mean_recall": mean_recall,
         "mean_accuracy": mean_accuracy,
+        "mean_f1_score": mean_f1_score,
         "predicted_labels": all_predicted_labels,
         "true_labels": all_true_labels,
         "confusion_matrices": confusion_matrices,
         "class_accuracies": class_accuracies,
         "class_recalls": class_recalls,
         "class_precisions": class_precisions,
+        "class_f1_scores": class_f1_scores,
     }

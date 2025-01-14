@@ -52,11 +52,13 @@ try:
     hyperparameters_train = json.loads(
         (training_run_data_path / "hyperparameters.json").read_text()
     )
+    
+    IMAGE_INPUT_SIZE = hyperparameters_train["model_image_input_size"]
 
     transform_test_test = v2.Compose(
         [
             v2.ToTensor(),
-            v2.Resize((448, 448), interpolation=v2.InterpolationMode.BICUBIC),
+            v2.Resize((IMAGE_INPUT_SIZE, IMAGE_INPUT_SIZE), interpolation=v2.InterpolationMode.BICUBIC),
             v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
         ]
     )
@@ -110,7 +112,7 @@ try:
         f"Test Loss: {test_results['loss']:.4f}, Time: {test_results['duration']:.0f}s"
     )
     logging.info(
-        f"Test Mean Accuracy: {test_results['mean_accuracy']:.4f}, Test Mean Precision: {test_results['mean_precision']:.4f}, Test Mean Recall: {test_results['mean_recall']:.4f}"
+        f"Test Macro Precision: {test_results['mean_precision']:.4f}, Test Macro Recall: {test_results['mean_recall']:.4f}, Test Macro F1 Score: {test_results['mean_f1_score']:.4f}"
     )
     logging.info(
         f"Test Subset Accuracy: {test_results['subset_accuracy']:.4f}, Test Mean Jaccard: {test_results['mean_jaccard']:.4f}"
@@ -120,10 +122,11 @@ try:
         accuracy = test_results["class_accuracies"][class_label]
         recall = test_results["class_recalls"][class_label]
         precision = test_results["class_precisions"][class_label]
+        f1_score = test_results["class_f1_scores"][class_label]
 
         logging.info(f"Label: {dataset.label_names[class_label]}")
         logging.info(
-            f"Accuracy: {accuracy:.3f}, Recall: {recall:.3f}, Precision: {precision:.3f}\n"
+            f"Accuracy: {accuracy:.3f}, Recall: {recall:.3f}, Precision: {precision:.3f}, F1 Score: {f1_score:.3f}\n"
             + pd.DataFrame(
                 conf, index=["True 0", "True 1"], columns=["Pred 0", "Pred 1"]
             ).to_markdown()
@@ -149,12 +152,14 @@ try:
         "test_mean_jaccard": test_results["mean_jaccard"],
         "test_mean_precision": test_results["mean_precision"],
         "test_mean_recall": test_results["mean_recall"],
+        "test_mean_f1_score": test_results["mean_f1_score"],
         "test_confusion_matrices": list(
             map(lambda conf: conf.tolist(), test_results["confusion_matrices"])
         ),
         "test_class_accuracies": test_results["class_accuracies"],
         "test_class_recalls": test_results["class_recalls"],
         "test_class_precisions": test_results["class_precisions"],
+        "test_class_f1_scores": test_results["class_f1_scores"],
     }
 
     (training_run_data_path / "test_metrics.json").write_text(

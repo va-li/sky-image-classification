@@ -113,7 +113,7 @@ try:
     }
     hyperparameters["dataset_indices"] = train_test_val_indices
 
-    BATCH_SIZE = 128
+    BATCH_SIZE = 32
     hyperparameters["batch_size"] = BATCH_SIZE
 
     # create dataloaders, shuffle the training set, but not the validation and test sets
@@ -179,8 +179,12 @@ try:
     FREEZE_BACKBONE = False
     hyperparameters["freeze_backbone"] = FREEZE_BACKBONE
 
-    best_jaccard_error = -1
-    best_jaccard_error_epoch = 0
+    best_loss = float("inf")
+    best_loss_epoch = 0
+    best_jaccard = 0
+    best_jaccard_epoch = 0
+    best_f1_score = 0
+    best_f1_score_epoch = 0
     train_losses = []
     train_times = []
     val_losses = []
@@ -189,6 +193,7 @@ try:
     val_mean_precisions = []
     val_mean_recalls = []
     val_mean_jaccards = []
+    val_mean_f1_scores = []
     val_times = []
 
     # prediction threshold above which a model output is considered a positive prediction
@@ -218,12 +223,6 @@ try:
         val_results = evaluate_model(
             model, criterion, val_loader, device, PREDICTION_THRESHOLD
         )
-        
-        # lr_before = scheduler.get_last_lr()[0]
-        # scheduler.step(val_results["loss"])
-        # lr_after = scheduler.get_last_lr()[0]
-        # if lr_before != lr_after:
-        #     logging.info(f"Learning rate changed from {lr_before} to {lr_after}")
 
         val_losses.append(val_results["loss"])
         val_times.append(val_results["duration"])
@@ -232,6 +231,7 @@ try:
         val_mean_precisions.append(val_results["mean_precision"])
         val_mean_recalls.append(val_results["mean_recall"])
         val_mean_accuracies.append(val_results["mean_accuracy"])
+        val_mean_f1_scores.append(val_results["mean_f1_score"])
 
         logging.info(f"Results Epoch {epoch+1}/{N_EPOCHS}")
 
@@ -239,28 +239,41 @@ try:
             accuracy = val_results["class_accuracies"][class_label]
             recall = val_results["class_recalls"][class_label]
             precision = val_results["class_precisions"][class_label]
+            f1_score = val_results["class_f1_scores"][class_label]
 
             logging.info(f"Label: {dataset.label_names[class_label]}")
             logging.info(
-                f"Accuracy: {accuracy:.3f}, Recall: {recall:.3f}, Precision: {precision:.3f}\n"
+                f"Accuracy: {accuracy:.3f}, Recall: {recall:.3f}, Precision: {precision:.3f}, F1 Score: {val_results['class_f1_scores'][class_label]:.3f}\n"
                 + pd.DataFrame(
                     conf, index=["True 0", "True 1"], columns=["Pred 0", "Pred 1"]
                 ).to_markdown()
             )
 
         # save the model if the validation loss is the best so far
-        if val_results["mean_jaccard"] > best_jaccard_error:
-            best_jaccard_error = val_results["mean_jaccard"]
-            best_jaccard_error_epoch = epoch
+        if val_results["loss"] < best_loss:
+            best_loss = val_results["loss"]
+            best_loss_epoch = epoch
             torch.save(model.state_dict(), training_run_data_path / "best_model.pth")
             logging.info(f"New best model saved at epoch {epoch+1}")
+            
+        if val_results["mean_jaccard"] > best_jaccard:
+            best_jaccard = val_results["mean_jaccard"]
+            best_jaccard_epoch = epoch
+            torch.save(model.state_dict(), training_run_data_path / "best_model_jaccard.pth")
+            logging.info(f"New best mean jaccard score saved at epoch {epoch+1}")
+        
+        if val_results["mean_f1_score"] > best_f1_score:
+            best_f1_score = val_results["mean_f1_score"]
+            best_f1_score_epoch = epoch
+            torch.save(model.state_dict(), training_run_data_path / "best_model_f1_score.pth")
+            logging.info(f"New best macro f1 score saved at epoch {epoch+1}")
 
         logging.info(f"Epoch {epoch+1} summary:")
         logging.info(
             f"Train Loss: {train_results['loss']:.4f}, Val Loss: {val_results['loss']:.4f}, Time: train {train_results['duration']:.0f}s + val {val_results['duration']:.0f}s"
         )
         logging.info(
-            f"Val Mean Accuracy: {val_mean_accuracies[-1]:.4f}, Val Mean Precision: {val_mean_precisions[-1]:.4f}, Val Mean Recall: {val_mean_recalls[-1]:.4f}"
+            f"Val Macro Precision: {val_mean_precisions[-1]:.4f}, Val Macro Recall: {val_mean_recalls[-1]:.4f}, Val Macro F1 Score: {val_mean_f1_scores[-1]:.4f}"
         )
         logging.info(
             f"Val Subset Accuracy: {val_subset_accuracies[-1]:.4f}, Val Mean Jaccard: {val_mean_jaccards[-1]:.4f}"
@@ -277,6 +290,7 @@ try:
                 "val_mean_jaccard": val_mean_jaccards,
                 "val_mean_precision": val_mean_precisions,
                 "val_mean_recall": val_mean_recalls,
+                "val_mean_f1_score": val_mean_f1_scores,
                 "val_time_seconds": val_times,
             },
             index=range(1, epoch + 2),
@@ -298,12 +312,12 @@ try:
             label="Validation",
         )
         # add vertical line at the epoch where the best model was saved (+1 because epoch is 0-based)
-        ax1.axvline(x=(best_jaccard_error_epoch + 1), color="gray", linestyle="--")
+        ax1.axvline(x=(best_loss_epoch + 1), color="gray", linestyle="--")
         # text label for the best model epoch
         ax1.text(
-            best_jaccard_error_epoch + 1,
+            best_loss_epoch + 1,
             1,
-            f"Best Model (Epoch {best_jaccard_error_epoch+1})",
+            f"Best Model (Epoch {best_loss_epoch+1})",
             rotation=90,
             verticalalignment="center",
         )
@@ -313,9 +327,9 @@ try:
 
         ax2 = ax1.twinx()
         color = "tab:blue"
-        ax2.set_ylabel("Mean Jaccard", color=color)
-        # ax2.plot(train_metrics["val_subset_accuracy"], color=color, label="Validation")
+        ax2.set_ylabel("Error Metric", color=color)
         ax2.plot(train_metrics["val_mean_jaccard"], label="Mean Jaccard")
+        ax2.plot(train_metrics["val_mean_f1_score"], label="Macro F1 Score")
         ax2.tick_params(axis="y", labelcolor=color)
         # legend in upper right corner
         ax2.legend(loc="upper right")
@@ -333,15 +347,14 @@ try:
         fig, ax = plt.subplots()
         ax.grid()
         ax.plot(train_metrics["val_mean_jaccard"], label="Mean Jaccard")
-        # ax.plot(train_metrics["val_mean_accuracy"], label="Mean Accuracy")
-        ax.plot(train_metrics["val_mean_precision"], label="Mean Precision")
-        ax.plot(train_metrics["val_mean_recall"], label="Mean Recall")
-        ax.axvline(x=(best_jaccard_error_epoch + 1), color="gray", linestyle="--")
+        ax.plot(train_metrics["val_mean_precision"], label="Macro Precision")
+        ax.plot(train_metrics["val_mean_recall"], label="Macro Recall")
+        ax.axvline(x=(best_loss_epoch + 1), color="gray", linestyle="--")
         # text label for the best model epoch
         ax.text(
-            best_jaccard_error_epoch + 1,
+            best_loss_epoch + 1,
             1,
-            f"Best Model (Epoch {best_jaccard_error_epoch+1})",
+            f"Best Model (Epoch {best_loss_epoch+1})",
             rotation=90,
             verticalalignment="center",
         )
@@ -358,14 +371,14 @@ try:
     logging.info("Training complete")
         
     # log the best model epoch
-    logging.info(f"Best model saved at epoch {best_jaccard_error_epoch+1}")
+    logging.info(f"Best model saved at epoch {best_loss_epoch+1}")
     # log the best jaccard error and other metrics
-    logging.info(f"Best model metrics (validation set):")
+    logging.info("Best model metrics (validation set):")
     logging.info(
-        f"Jaccard: {best_jaccard_error:.4f}, Subset Accuracy: {val_subset_accuracies[best_jaccard_error_epoch]:.4f}"
+        f"Jaccard: {val_mean_jaccards[best_loss_epoch]:.4f}, Subset Accuracy: {val_subset_accuracies[best_loss_epoch]:.4f}, Loss: {val_losses[best_loss_epoch]:.4f}"
     )
     logging.info(
-        f"Mean Accuracy: {val_mean_accuracies[best_jaccard_error_epoch]:.4f}, Mean Precision: {val_mean_precisions[best_jaccard_error_epoch]:.4f}, Mean Recall: {val_mean_recalls[best_jaccard_error_epoch]:.4f}"
+        f"Macro Precision: {val_mean_precisions[best_loss_epoch]:.4f}, Macro Recall: {val_mean_recalls[best_loss_epoch]:.4f}, Macro F1 Score: {val_mean_f1_scores[best_loss_epoch]:.4f}"
     )
 
     ###########################################################################
@@ -397,7 +410,7 @@ try:
         f"Test Loss: {test_results['loss']:.4f}, Time: {test_results['duration']:.0f}s"
     )
     logging.info(
-        f"Test Mean Accuracy: {test_results['mean_accuracy']:.4f}, Test Mean Precision: {test_results['mean_precision']:.4f}, Test Mean Recall: {test_results['mean_recall']:.4f}"
+        f"Test Macro Precision: {test_results['mean_precision']:.4f}, Test Macro Recall: {test_results['mean_recall']:.4f}, Test Macro F1 Score: {test_results['mean_f1_score']:.4f}"
     )
     logging.info(
         f"Test Subset Accuracy: {test_results['subset_accuracy']:.4f}, Test Mean Jaccard: {test_results['mean_jaccard']:.4f}"
@@ -407,10 +420,11 @@ try:
         accuracy = test_results["class_accuracies"][class_label]
         recall = test_results["class_recalls"][class_label]
         precision = test_results["class_precisions"][class_label]
+        f1_score = test_results["class_f1_scores"][class_label]
 
         logging.info(f"Label: {dataset.label_names[class_label]}")
         logging.info(
-            f"Accuracy: {accuracy:.3f}, Recall: {recall:.3f}, Precision: {precision:.3f}\n"
+            f"Accuracy: {accuracy:.3f}, Recall: {recall:.3f}, Precision: {precision:.3f}, F1 Score: {f1_score:.3f}\n"
             + pd.DataFrame(
                 conf, index=["True 0", "True 1"], columns=["Pred 0", "Pred 1"]
             ).to_markdown()
@@ -436,12 +450,14 @@ try:
         "test_mean_jaccard": test_results["mean_jaccard"],
         "test_mean_precision": test_results["mean_precision"],
         "test_mean_recall": test_results["mean_recall"],
+        "test_mean_f1_score": test_results["mean_f1_score"],
         "test_confusion_matrices": list(
             map(lambda conf: conf.tolist(), test_results["confusion_matrices"])
         ),
         "test_class_accuracies": test_results["class_accuracies"],
         "test_class_recalls": test_results["class_recalls"],
         "test_class_precisions": test_results["class_precisions"],
+        "test_class_f1_scores": test_results["class_f1_scores"],
     }
 
     (training_run_data_path / "test_metrics.json").write_text(
