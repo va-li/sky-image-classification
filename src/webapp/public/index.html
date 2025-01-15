@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <title>ADL2024W Sky Image Classification</title>
@@ -23,6 +23,13 @@
         }
         #dropzone.dragover {
             background-color: #f0f0f0;
+        }
+        #previewImage {
+            max-width: 100%;
+            display: none;
+        }
+        #fileInput {
+            display: none;
         }
         #predictions {
             display: flex;
@@ -95,8 +102,8 @@
                 <div>
                     <div id="dropzone">
                         <p>Drag and drop a sky image here or click to select</p>
-                        <input type="file" id="fileInput" accept="image/*" style="display:none;">
-                        <img id="previewImage" style="max-width: 100%; display: none;">
+                        <input type="file" id="fileInput" accept="image/*">
+                        <img id="previewImage">
                     </div>
                     <button id="predictButton" disabled>Classify Image</button>
                 </div>
@@ -164,8 +171,8 @@
                 let ground_truth_available = class_element.ground_truth !== undefined;
                 let correct_prediciton = false;
                 if (ground_truth_available) {
-                        correct_prediciton = (class_element.ground_truth === 1 && class_element.prediction_score >= 0.5)
-                            || (class_element.ground_truth === 0 && class_element.prediction_score < 0.5);
+                        correct_prediciton = (class_element.ground_truth === 1 && class_element.prediction_score > 0.5)
+                            || (class_element.ground_truth === 0 && class_element.prediction_score <= 0.5);
                     }
 
                 // update the prediction element, only set styles and classes, do not update the innerHTML
@@ -173,7 +180,7 @@
                 predictionElement.children[1].classList.remove('no-ground-truth', 'correct', 'incorrect');
                 predictionElement.children[1].classList.add(ground_truth_available ? (correct_prediciton ? 'correct' : 'incorrect') : 'no-ground-truth');
                 predictionElement.children[1].children[0].style.width = `max(20px, ${(class_element.prediction_score * 100).toFixed(1)}%)`;
-                predictionElement.children[1].children[0].style.backgroundColor = class_element.prediction_score >= 0.5 ? '#C49504' : '#453D24';
+                predictionElement.children[1].children[0].style.backgroundColor = class_element.prediction_score > 0.5 ? '#C49504' : '#453D24';
             });
         }
 
@@ -197,9 +204,9 @@
 
         function displayImageInDatasetInfo(dataset) {
             if (dataset === 'unknown') {
-                imageInDatasetInfo.innerHTML = 'Image not used in any dataset.';
+                imageInDatasetInfo.innerHTML = 'Image not found in train, validation or test set.';
             } else if (dataset) {
-                imageInDatasetInfo.innerHTML = `Image used in ${dataset} set.`;
+                imageInDatasetInfo.innerHTML = `Image used in <b>${dataset} set</b>.`;
             } else {
                 imageInDatasetInfo.innerHTML = '';
             }
