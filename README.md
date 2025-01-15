@@ -16,7 +16,7 @@ Table of Contents:
   - [Training](#training)
   - [Webapp](#webapp)
 - [Intermediate Updates](#intermediate-updates)
-  - [Update 2025-01-14](#update-2025-01-14)
+  - [Update 2025-01-15](#update-2025-01-15)
   - [Update 2024-12-17](#update-2024-12-17)
   - [Update 2024-11-21](#update-2024-11-21)
   - [Update 2024-11-20](#update-2024-11-20)
@@ -171,7 +171,7 @@ To start the webapp, run [run.sh](./src/webapp/run_webapp.sh). The webapp will b
 
 # Intermediate Updates
 
-## Update 2025-01-14
+## Update 2025-01-15
 
 ### Dataset
 
@@ -179,11 +179,11 @@ I decided a time based split of the training data was not a good choice for my d
 
 The dataset is now split as follows:
 
-| Set         | # images |
-|:------------|---------:|
-| Train       |     4103 |
-| Validation  |      584 |
-| Test        |      514 |
+| Set        | # images |
+|:-----------|---------:|
+| Train      |     4103 |
+| Validation |      584 |
+| Test       |      514 |
 
 | Class     | Train | Validation | Test |
 |-----------|------:|-----------:|-----:|
@@ -218,55 +218,55 @@ On the test set, the best model performs as follows:
 |------------------:|---------------------:|------------------:|
 |             0.865 |                0.872 |             0.866 |
 
-In a bit more detail, for each class in test set:
+In a bit more detail, for each class in **test set**:
 
-| Class     | Test Precision (one-vs-rest) | Test Recall (one-vs-rest) | # labels |
-|-----------|-----------------------------:|--------------------------:|---------:|
-| Clouds    |                        0.984 |                     0.920 |      413 |
-| Rain      |                        0.722 |                     0.743 |       70 |
-| Dew       |                        1.000 |                     0.942 |      190 |
-| Clear sky |                        0.742 |                     0.941 |      101 |
-| Soiling   |                        0.912 |                     0.785 |      186 |
+| Class     | Precision (one-vs-rest) | Recall (one-vs-rest) | # labels |
+|-----------|------------------------:|---------------------:|---------:|
+| Clouds    |                   0.984 |                0.920 |      413 |
+| Rain      |                   0.722 |                0.743 |       70 |
+| Dew       |                   1.000 |                0.942 |      190 |
+| Clear sky |                   0.742 |                0.941 |      101 |
+| Soiling   |                   0.912 |                0.785 |      186 |
 
-The Mean Jaccard Score for images in the test set with the same label combination:
+The Jaccard Scores for images in the **test set** with the same true label combination (ordered by mean Jaccard Score):
 
-| Label combination     | Test Mean Jaccard | # images |
-|:----------------------|------------------:|---------:|
-| clear sky             |             1.000 |       77 |
-| clouds, rain          |             1.000 |        2 |
-| clouds, rain, dew     |             0.913 |       50 |
-| clouds, rain, soiling |             0.889 |        9 |
-| clouds, soiling       |             0.884 |       96 |
-| clouds, dew           |             0.873 |       51 |
-| clouds, dew, soiling  |             0.870 |       73 |
-| clouds                |             0.792 |      132 |
-| dew, clear sky        |             0.762 |        7 |
-| rain, dew, clear sky  |             0.580 |        9 |
-| clear sky, soiling    |             0.500 |        8 |
+| True Label combination | Mean Jaccard | Min Jaccard | Median Jaccard | Max Jaccard | # images |
+|:-----------------------|-------------:|------------:|---------------:|------------:|---------:|
+| clear sky              |        1.000 |       1.000 |          1.000 |       1.000 |       77 |
+| clouds, rain           |        1.000 |       1.000 |          1.000 |       1.000 |        2 |
+| clouds, rain, dew      |        0.913 |       0.667 |          1.000 |       1.000 |       50 |
+| clouds, rain, soiling  |        0.889 |       0.667 |          1.000 |       1.000 |        9 |
+| clouds, soiling        |        0.884 |       0.000 |          1.000 |       1.000 |       96 |
+| clouds, dew            |        0.873 |       0.333 |          1.000 |       1.000 |       51 |
+| clouds, dew, soiling   |        0.870 |       0.250 |          1.000 |       1.000 |       73 |
+| clouds                 |        0.792 |       0.000 |          1.000 |       1.000 |      132 |
+| dew, clear sky         |        0.762 |       0.667 |          0.667 |       1.000 |        7 |
+| rain, dew, clear sky   |        0.580 |       0.400 |          0.500 |       1.000 |        9 |
+| clear sky, soiling     |        0.500 |       0.500 |          0.500 |       0.500 |        8 |
 
 In the following are example predictions on the test set images.
 
 When the model performs well (all labels are predicted correctly):
 
-![Good predictions on test set](dissemination/images/best_model_prediction_examples_good.png)
+![Good predictions on test set](dissemination/images/best_model_prediction_examples_good.jpg)
 
-When the model performs mediocre (some labels are predicted correctly):
+When the model performs mediocre (some labels are predicted correctly, some are not):
 
-![Mediocre predictions on test set](dissemination/images/best_model_prediction_examples_oneoff.png)
+![Mediocre predictions on test set](dissemination/images/best_model_prediction_examples_oneoff.jpg)
 
-When the model performs poorly (no labels are predicted correctly):
+When the model performs poorly (more labels are predicted incorrectly than correctly):
 
-![Poor predictions on test set](dissemination/images/best_model_prediction_examples_bad.png)
+![Poor predictions on test set](dissemination/images/best_model_prediction_examples_bad.jpg)
 
 Additional time spent on each task (including the time spent on the tasks in the previous updates):
 
 - Designing, Building and Training the Network:
     - Fixing bugs and training the model and experimenting with hyperparameters: **8 hours**
-    - Analyzing the best model and writing the update: **6 hours**
+    - Analyzing the best model and writing the update: **9 hours**
 - Building the Application:
     - Improving the web interface and deploying the app to a server: **3 hours**
 
-**Total: 106 hours**
+**Total: 109 hours**
 
 ## Update 2024-12-17
 
