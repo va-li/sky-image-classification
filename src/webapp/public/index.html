@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>ADL2024W Sky Image Classification</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link id="favicon" rel="icon" type="image/x-icon" href="public/favicon.ico">
     <style>
         #dropzone {
             border: 2px dashed #ccc;
@@ -133,6 +134,7 @@
                         </div>
                     </div>
                     <div id="inference-time"></div>
+                    <div id="image-in-dataset-info"></div>
                 </div>
             </div>
             
@@ -149,8 +151,64 @@
         const predictButton = document.getElementById('predictButton');
         const predictions = document.getElementById('predictions');
         const inferenceTime = document.getElementById('inference-time');
+        const imageInDatasetInfo = document.getElementById('image-in-dataset-info');
 
         let selectedFile = null;
+
+        function displayPredictions(predictionData) {
+
+            predictionData.forEach(class_element => {
+                // get the prediction element
+                let predictionElement = document.getElementById(`prediction_${class_element.label.replace(' ', '_').toLowerCase()}`);
+                // check if ground_truth key exists
+                let ground_truth_available = class_element.ground_truth !== undefined;
+                let correct_prediciton = false;
+                if (ground_truth_available) {
+                        correct_prediciton = (class_element.ground_truth === 1 && class_element.prediction_score >= 0.5)
+                            || (class_element.ground_truth === 0 && class_element.prediction_score < 0.5);
+                    }
+
+                // update the prediction element, only set styles and classes, do not update the innerHTML
+                predictionElement.children[0].children[1].innerHTML = `${(class_element.prediction_score * 100).toFixed(1)}%`;
+                predictionElement.children[1].classList.remove('no-ground-truth', 'correct', 'incorrect');
+                predictionElement.children[1].classList.add(ground_truth_available ? (correct_prediciton ? 'correct' : 'incorrect') : 'no-ground-truth');
+                predictionElement.children[1].children[0].style.width = `max(20px, ${(class_element.prediction_score * 100).toFixed(1)}%)`;
+                predictionElement.children[1].children[0].style.backgroundColor = class_element.prediction_score >= 0.5 ? '#C49504' : '#453D24';
+            });
+        }
+
+        function resetPredictions() {
+            for (let predictionElement of predictions.children) {
+                predictionElement.children[0].children[1].innerHTML = '%';
+                predictionElement.children[1].classList.remove('no-ground-truth', 'correct', 'incorrect');
+                predictionElement.children[1].classList.add('no-ground-truth');
+                predictionElement.children[1].children[0].style.width = '20px';
+                predictionElement.children[1].children[0].style.backgroundColor = '#453D24';
+            }
+        }
+
+        function displayInferenceTime(time_ms) {
+            inferenceTime.innerHTML = `Inference time: ${time_ms.toFixed(0)} ms`;
+        }
+
+        function resetInferenceTime() {
+            inferenceTime.innerHTML = '';
+        }
+
+        function displayImageInDatasetInfo(dataset) {
+            if (dataset === 'unknown') {
+                imageInDatasetInfo.innerHTML = 'Image not used in any dataset.';
+            } else if (dataset) {
+                imageInDatasetInfo.innerHTML = `Image used in ${dataset} set.`;
+            } else {
+                imageInDatasetInfo.innerHTML = '';
+            }
+        }
+
+        function resetImageInDatasetInfo() {
+            imageInDatasetInfo.innerHTML = '';
+        }
+
 
         // Drag and drop event handlers
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -202,14 +260,9 @@
                     previewImage.src = e.target.result;
                     previewImage.style.display = 'block';
                     predictButton.disabled = false;
-                    inferenceTime.innerHTML = '';
-                    for (let predictionElement of predictions.children) {
-                        predictionElement.children[0].children[1].innerHTML = '%';
-                        predictionElement.children[1].classList.remove('no-ground-truth', 'correct', 'incorrect');
-                        predictionElement.children[1].classList.add('no-ground-truth');
-                        predictionElement.children[1].children[0].style.width = '20px';
-                        predictionElement.children[1].children[0].style.backgroundColor = '#453D24';
-                    };
+                    resetPredictions();
+                    resetInferenceTime();
+                    resetImageInDatasetInfo();
                 };
                 reader.readAsDataURL(file);
             }
@@ -236,38 +289,17 @@
                 const result = await response.json();
                 displayPredictions(result.labels);
                 displayInferenceTime(result.inference_time_ms);
+                displayImageInDatasetInfo(result.dataset);
+                
             } catch (error) {
                 console.error('Error:', error);
-                predictions.innerHTML = `<p>Prediction failed: ${error.message}</p>`;
-                inferenceTime.innerHTML = '';
+                resetPredictions();
+                resetInferenceTime();
+                resetImageInDatasetInfo();
+
+                alert(`An error occurred while predicting the image.\n${error.message}`);
             }
         });
-
-        function displayPredictions(predictionData) {
-
-            predictionData.forEach(class_element => {
-                // get the prediction element
-                let predictionElement = document.getElementById(`prediction_${class_element.label.replace(' ', '_').toLowerCase()}`);
-                // check if ground_truth key exists
-                let ground_truth_available = class_element.ground_truth !== undefined;
-                let correct_prediciton = false;
-                if (ground_truth_available) {
-                        correct_prediciton = (class_element.ground_truth === 1 && class_element.prediction_score >= 0.5)
-                            || (class_element.ground_truth === 0 && class_element.prediction_score < 0.5);
-                    }
-
-                // update the prediction element, only set styles and classes, do not update the innerHTML
-                predictionElement.children[0].children[1].innerHTML = `${(class_element.prediction_score * 100).toFixed(1)}%`;
-                predictionElement.children[1].classList.remove('no-ground-truth', 'correct', 'incorrect');
-                predictionElement.children[1].classList.add(ground_truth_available ? (correct_prediciton ? 'correct' : 'incorrect') : 'no-ground-truth');
-                predictionElement.children[1].children[0].style.width = `max(20px, ${(class_element.prediction_score * 100).toFixed(1)}%)`;
-                predictionElement.children[1].children[0].style.backgroundColor = class_element.prediction_score >= 0.5 ? '#C49504' : '#453D24';
-            });
-        }
-
-        function displayInferenceTime(time_ms) {
-            inferenceTime.innerHTML = `Inference time: ${time_ms.toFixed(0)} ms`;
-        }
     </script>
 </body>
 </html>

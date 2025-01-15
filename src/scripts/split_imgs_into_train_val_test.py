@@ -75,6 +75,11 @@ if not val_folder.exists():
     val_folder.mkdir()
 if not test_folder.exists():
     test_folder.mkdir()
+    
+# create files for train, val, test sets with the file paths of the corresponding images
+(train_folder / "train_image_files.txt").write_text("\n".join([str(p) for p in train_file_paths]))
+(val_folder / "val_image_files.txt").write_text("\n".join([str(p) for p in val_file_paths]))
+(test_folder / "test_image_files.txt").write_text("\n".join([str(p) for p in test_file_paths]))    
 
 # copy images to train, val, test folders
 for rel_file_path in dataset.image_metadata_df.iloc[train_indices].index:

@@ -69,6 +69,10 @@ def parse_image_path_and_labels(label_file_path: Path | str, class_labels: list)
 
 GROUND_TRUTH = parse_image_path_and_labels(dataset_path / "default.txt", CLASS_LABELS)
 
+TRAIN_SET_IMAGES = { Path(f).name for f in (dataset_path / "train_image_files.txt").read_text().split("\n") if len(f) > 0 }
+VAL_SET_IMAGES = { Path(f).name for f in (dataset_path / "val_image_files.txt").read_text().split("\n") if len(f) > 0 }
+TEST_SET_IMAGES = { Path(f).name for f in (dataset_path / "test_image_files.txt").read_text().split("\n") if len(f) > 0 }
+
 app = FastAPI()
 
 # CORS middleware to allow frontend requests
@@ -115,10 +119,21 @@ async def predict_image(file: UploadFile = File(...)):
             labels = [ {**pred, **gt} for pred, gt in zip(labels, ground_truth) ]
         else:
             ground_truth = None
+            
+        # check if the image is in the train, val or test set
+        if file_name in TRAIN_SET_IMAGES:
+            dataset = "train"
+        elif file_name in VAL_SET_IMAGES:
+            dataset = "validation"
+        elif file_name in TEST_SET_IMAGES:
+            dataset = "test"
+        else:
+            dataset = "unknown"
         
         responseContent = {
             "labels": labels,
             "inference_time_ms": inference_time_ms,
+            "dataset": dataset,
         }
 
         return JSONResponse(content=responseContent)
@@ -130,7 +145,6 @@ async def predict_image(file: UploadFile = File(...)):
 @app.get("/")
 async def index():
     return FileResponse("public/index.html")
-
 
 if __name__ == "__main__":
     import uvicorn
