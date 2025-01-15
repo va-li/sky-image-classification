@@ -165,7 +165,7 @@ Then pick the best model from one of the training runs (`best_model.pth`) and pl
 
 To start the webapp, run [run.sh](./src/webapp/run_webapp.sh). The webapp will be available at [http://localhost:8000](http://localhost:8000).
 
-![Webapp Screenshot 1](dissemination/images/webapp_screenshot_2024-11-21_1.png)
+![Webapp Screenshot 2](dissemination/images/webapp_screenshot_2025-01-15.png)
 
 ---
 
