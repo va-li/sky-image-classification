@@ -196,8 +196,8 @@
             const event = new Event("change", {
                 bubbles: !0,
             });
-            window.scrollTo({ top: 0, behavior: 'smooth' });
             fileInput.dispatchEvent(event);
+            predictButton.scrollIntoView({ behavior: 'smooth', block: 'end' });
         }
         async function createFile(url, name) {
             let response = await fetch(url);
@@ -351,7 +351,7 @@
 
                 const result = await response.json();
                 console.log(result);
-                imageInDatasetInfo.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                imageInDatasetInfo.scrollIntoView({ behavior: 'smooth', block: 'end' });
                 displayPredictions(result.labels);
                 displayInferenceTime(result.inference_time_ms);
                 displayImageInDatasetInfo(result.dataset);
