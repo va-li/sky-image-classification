@@ -336,6 +336,9 @@
             const formData = new FormData();
             formData.append('file', file);
 
+            // Set aria-busy="true"
+            predictButton.setAttribute('aria-busy', 'true');
+
             try {
                 const response = await fetch('/predict', {
                     method: 'POST',
@@ -352,12 +355,14 @@
                 displayPredictions(result.labels);
                 displayInferenceTime(result.inference_time_ms);
                 displayImageInDatasetInfo(result.dataset);
+                predictButton.setAttribute('aria-busy', 'false');
                 
             } catch (error) {
                 console.error('Error:', error);
                 resetPredictions();
                 resetInferenceTime();
                 resetImageInDatasetInfo();
+                predictButton.setAttribute('aria-busy', 'false');
 
                 alert(`Classifying image failed.\n\n${error.message}`);
             }
