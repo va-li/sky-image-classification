@@ -2,6 +2,7 @@
 <html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>ADL2024W Sky Image Classification</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
     <link id="favicon" rel="icon" type="image/x-icon" href="public/favicon.ico">
@@ -101,7 +102,7 @@
             <div class="grid">
                 <div>
                     <div id="dropzone">
-                        <p>Drag and drop a sky image here or click to select</p>
+                        <p>Drag and drop a sky image here, or click to select, or choose from the examples below</p>
                         <input type="file" id="fileInput" accept="image/*">
                         <img id="previewImage">
                     </div>
@@ -146,7 +147,24 @@
             </div>
             
             <footer>
-                <a href="/public/example-sky-images.zip" download>Download Example Sky Images (3.4 MiB)</a>
+                <p>
+                    <h4>Example Images (click to load)</h4>
+                    <div class="grid">
+                        <button onclick="loadExampleImage('/public/example-sky-images/ikarus_2024-07-11T07-45-00-006146+00-00.jpg', 'ikarus_2024-07-11T07-45-00-006146+00-00.jpg')">1</button>
+                        <button onclick="loadExampleImage('/public/example-sky-images/ikarus_2024-09-09T06-45-00-006541+00-00.jpg', 'ikarus_2024-09-09T06-45-00-006541+00-00.jpg')">2</button>
+                        <button onclick="loadExampleImage('/public/example-sky-images/ikarus_2024-08-11T16-45-00-012177+00-00.jpg', 'ikarus_2024-08-11T16-45-00-012177+00-00.jpg')">3</button>
+                        <button onclick="loadExampleImage('/public/example-sky-images/ikarus_2024-09-14T11-15-00-006645+00-00.jpg', 'ikarus_2024-09-14T11-15-00-006645+00-00.jpg')">4</button>
+                        <button onclick="loadExampleImage('/public/example-sky-images/ikarus_2024-08-29T06-15-00-007026+00-00.jpg', 'ikarus_2024-08-29T06-15-00-007026+00-00.jpg')">5</button>
+                        <button onclick="loadExampleImage('/public/example-sky-images/ikarus_2024-09-14T14-15-00-006636+00-00.jpg', 'ikarus_2024-09-14T14-15-00-006636+00-00.jpg')">6</button>
+                        <button onclick="loadExampleImage('/public/example-sky-images/ikarus_2024-09-03T15-45-00-006119+00-00.jpg', 'ikarus_2024-09-03T15-45-00-006119+00-00.jpg')">7</button>
+                        <button onclick="loadExampleImage('/public/example-sky-images/ikarus_2024-09-24T08-15-00-007264+00-00.jpg', 'ikarus_2024-09-24T08-15-00-007264+00-00.jpg')">8</button>
+                        <button onclick="loadExampleImage('/public/example-sky-images/daedalus_2024-10-02T06-00-00-011513+00-00.jpg', 'daedalus_2024-10-02T06-00-00-011513+00-00.jpg')">9</button>
+                        <button onclick="loadExampleImage('/public/example-sky-images/daedalus_2024-10-02T08-45-00-006416+00-00.jpg', 'daedalus_2024-10-02T08-45-00-006416+00-00.jpg')">10</button>
+                        <button onclick="loadExampleImage('/public/example-sky-images/daedalus_2024-08-12T11-45-00-006259+00-00.jpg', 'daedalus_2024-08-12T11-45-00-006259+00-00.jpg')">11</button>
+                        <button onclick="loadExampleImage('/public/example-sky-images/daedalus_2024-06-28T15-30-00-006782+00-00.jpg', 'daedalus_2024-06-28T15-30-00-006782+00-00.jpg')">12</button>
+                    </div>
+                </p>
+                <small>Created by <em>Valentin Bauer</em> for the course <em>Applied Deep Learning, 2024 WS</em>.</small>
             </footer>
         </article>
     </main>
@@ -161,6 +179,37 @@
         const imageInDatasetInfo = document.getElementById('image-in-dataset-info');
 
         let selectedFile = null;
+
+
+        // Load example images, code adapted from https://stackoverflow.com/a/76863823
+        // This function does the following
+        // 1. fetches the Image from URL provided
+        // 2. creates a file object with the resume data
+        // 3. triggers the change event on the file input element
+        // 4. the file input element gets the file object
+        // 5. the file object is uploaded to the website
+        async function loadExampleImage(imageUrl, imageName) {
+            const designFile = await createFile(imageUrl, imageName);
+            const dt = new DataTransfer();
+            dt.items.add(designFile);
+            fileInput.files = dt.files;
+            const event = new Event("change", {
+                bubbles: !0,
+            });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            fileInput.dispatchEvent(event);
+        }
+        async function createFile(url, name) {
+            let response = await fetch(url);
+            if (!response.ok) {
+                alert(`Loading image failed.\n\nHTTP Error ${response.status}` + (response.statusText ? ` ${response.statusText}` : ''));
+            }
+            let data = await response.blob();
+            let metadata = {
+                type: "image/png",
+            };
+            return new File([data], name, metadata);
+        }
 
         function displayPredictions(predictionData) {
 
@@ -293,7 +342,13 @@
                     body: formData
                 });
 
+                if (!response.ok) {
+                    throw new Error(`HTTP Error ${response.status}` + (response.statusText ? `: ${response.statusText}` : ''));
+                }
+
                 const result = await response.json();
+                console.log(result);
+                imageInDatasetInfo.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
                 displayPredictions(result.labels);
                 displayInferenceTime(result.inference_time_ms);
                 displayImageInDatasetInfo(result.dataset);
@@ -304,7 +359,7 @@
                 resetInferenceTime();
                 resetImageInDatasetInfo();
 
-                alert(`An error occurred while predicting the image.\n${error.message}`);
+                alert(`Classifying image failed.\n\n${error.message}`);
             }
         });
     </script>
