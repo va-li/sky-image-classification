@@ -1,4 +1,4 @@
-# Applied Deep Learning 2024WS Project Proposal
+# All-Sky Image Classification (Applied Deep Learning Project 2024WS)
 
 Topic: *Image Classification*
 
@@ -6,6 +6,8 @@ Project Type: *Bring your own data*
 
 Table of Contents:
 
+
+- [Video Presentation](#video-presentation)
 - [Assignment 1 - Proposal](#assignment-1---proposal)
   - [Project idea and approach](#project-idea-and-approach)
   - [Dataset](#dataset)
@@ -21,7 +23,20 @@ Table of Contents:
   - [Update 2024-11-21](#update-2024-11-21)
   - [Update 2024-11-20](#update-2024-11-20)
   - [Update 2024-10-29](#update-2024-10-29)
+
 ---
+
+# Results
+
+## Video Presentation
+
+Runtime: 4 minutes
+
+[![Project Final Video Presentation](https://img.youtube.com/vi/CJ4zXqBXwgc/0.jpg)](https://youtu.be/CJ4zXqBXwgc)
+
+## Report
+
+[AppliedDeepLearning - Final Report (public version).pdf (4 MB, 5 pages)](dissemination/AppliedDeepLearning%20-%20Final%20Report%20(public%20version).pdf)
 
 # Assignment 1 - Proposal
 
