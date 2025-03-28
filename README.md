@@ -7,7 +7,7 @@ Project Type: *Bring your own data*
 Table of Contents:
 
 
-- [Video Presentation](#video-presentation)
+- [Results](#results)
 - [Assignment 1 - Proposal](#assignment-1---proposal)
   - [Project idea and approach](#project-idea-and-approach)
   - [Dataset](#dataset)
