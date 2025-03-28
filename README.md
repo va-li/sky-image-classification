@@ -32,7 +32,7 @@ Table of Contents:
 
 Runtime: 4 minutes
 
-[![Project Final Video Presentation](https://img.youtube.com/vi/CJ4zXqBXwgc/0.jpg)](https://youtu.be/CJ4zXqBXwgc)
+[![Project Final Video Presentation](dissemination/images/video_presentation_thumbnail.jpg)](https://youtu.be/CJ4zXqBXwgc)
 
 ## Report
 
